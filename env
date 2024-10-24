@@ -1,11 +1,11 @@
-BATTLE_BOT=safest
+BATTLE_BOT=PokeBattle
 WEBSOCKET_URI=wss://sim3.psim.us/showdown/websocket
-PS_USERNAME=MyUsername
-PS_PASSWORD=MyPassword
+PS_USERNAME=veshuajid
+PS_PASSWORD=6k36@Yj5xCVHU&A0!1
 BOT_MODE=SEARCH_LADDER
 POKEMON_MODE=gen7randombattle
 RUN_COUNT=1
 
-USER_TO_CHALLENGE=SomeOtherPerson
-TEAM_NAME=gen8/ou/clef_sand
+USER_TO_CHALLENGE=
+TEAM_NAME=
 SAVE_REPLAY=False
