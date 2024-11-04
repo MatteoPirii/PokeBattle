@@ -267,7 +267,7 @@ class Battle(ABC):
         return user_options, opponent_options
 
     @abstractmethod
-    def find_best_move(self):
+    def find_best_move(self) -> list[str]:
         ...
 
 
@@ -421,7 +421,7 @@ class Battler:
             except KeyError:
                 pass
 
-    def get_switches(self, reviving=False):
+    def get_switches(self, reviving=False) -> list[str]:
         if self.trapped:
             return []
 
@@ -481,7 +481,7 @@ class Pokemon:
         self.fainted = False
         self.reviving = False
         self.moves = []
-        self.status = None
+        self.status: str | None = None
         self.volatile_statuses = []
         self.boosts = defaultdict(lambda: 0)
         self.can_mega_evo = False
@@ -525,7 +525,7 @@ class Pokemon:
         return "".join(ps_string.split(":")[1:]).strip()
 
     @classmethod
-    def from_switch_string(cls, switch_string, nickname=None):
+    def from_switch_string(cls, switch_string, nickname=None) -> 'Pokemon':
         if nickname is not None:
             nickname = cls.extract_nickname_from_pokemonshowdown_string(nickname)
 
@@ -742,6 +742,16 @@ class Move:
         self.disabled = False
         self.can_z = False
         self.current_pp = self.max_pp
+        self.accuracy: int | bool
+        try:
+            self.accuracy = int(move_json.get(constants.ACCURACY))
+        except:
+            self.accuracy = bool(move_json.get(constants.ACCURACY))
+
+        self.basePower: int = int(move_json.get(constants.BASE_POWER))
+        self.type: str = move_json.get(constants.TYPE)
+        self.status: str = move_json.get(constants.STATUS)
+        self.category: str = move_json.get(constants.CATEGORY)
 
     def to_dict(self):
         return {

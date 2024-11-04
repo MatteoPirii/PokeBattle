@@ -1,7 +1,9 @@
 BATTLE_BOT=PokeBattle
 WEBSOCKET_URI=wss://sim3.psim.us/showdown/websocket
+
 PS_USERNAME=veshuajid
 PS_PASSWORD=6k36@Yj5xCVHU&A0!1
+
 BOT_MODE=SEARCH_LADDER
 POKEMON_MODE=gen7randombattle
 RUN_COUNT=1

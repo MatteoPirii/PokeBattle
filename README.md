@@ -3,7 +3,6 @@ A Pokémon battle-bot that can play battles on [Pokemon Showdown](https://pokemo
 
 The bot can play single battles in generations 3 through 8.
 
-![badge](https://github.com/pmariglia/showdown/actions/workflows/pythonapp.yml/badge.svg)
 
 ## Python version
 Developed and tested using Python 3.8.
@@ -13,7 +12,7 @@ Developed and tested using Python 3.8.
 ### Configuration
 Environment variables are used for configuration.
 You may either set these in your environment before running,
-or populate them in the [env](https://github.com/pmariglia/showdown/blob/master/env) file.
+or populate them in the [env](./env) file.
 
 The configurations available are:
 
@@ -36,13 +35,13 @@ The configurations available are:
 
 **1. Clone**
 
-Clone the repository with `git clone https://github.com/pmariglia/showdown.git`
+Clone the repository with `git clone https://github.com/MatteoPiri/PokeBattle.git`
 
 **2. Install Requirements**
 
 Install the requirements with `pip install -r requirements.txt`.
 
-**3. Configure your [env](https://github.com/pmariglia/showdown/blob/master/env) file**
+**3. Configure your [env](./env) file**
 
 Here is a sample:
 ```
@@ -64,7 +63,7 @@ This requires Docker 17.06 or higher.
 
 **1. Clone the repository**
 
-`git clone https://github.com/pmariglia/showdown.git`
+`git clone https://github.com/MatteoPiri/PokeBattle.git`
 
 **2. Build the Docker image**
 
@@ -122,7 +121,7 @@ Selects the move that will do the most damage to the opponent
 Does not switch
 
 ## Write your own bot
-Create a package in [showdown/battle_bots](https://github.com/pmariglia/showdown/tree/master/showdown/battle_bots) with
+Create a package in [showdown/battle_bots](./showdown/battle_bots) with
 a module named `main.py`. In this module, create a class named `BattleBot`, override the Battle class,
 and implement your own `find_best_move` function.
 
@@ -131,7 +130,7 @@ Set the `BATTLE_BOT` environment variable to the name of your package and your f
 ## The Battle Engine
 The bots in the project all use a Pokemon battle engine to determine all possible transpositions that may occur from a pair of moves.
 
-For more information, see [ENGINE.md](https://github.com/pmariglia/showdown/blob/master/ENGINE.md) 
+For more information, see [ENGINE.md](./ENGINE.md) 
 
 ## Specifying Teams
 You can specify teams by setting the `TEAM_NAME` environment variable.
