@@ -8,6 +8,7 @@ from typing import override
 import constants
 from showdown.battle import Battle, Pokemon, Move
 from showdown.battle_bots.helpers import format_decision
+from showdown.engine import helpers
 
 # JSON file containing all moves
 with open('data/moves.json', 'r') as f:
@@ -15,19 +16,30 @@ with open('data/moves.json', 'r') as f:
 
 
 class BattleBot(Battle):
+
     def __init__(self, *args, **kwargs):
         super(BattleBot, self).__init__(*args, **kwargs)
+        self.consecutive_switch_penalty = 10
 
     @override
     def find_best_move(self):
         """
-        Finds best move or best switch using Minmax with decision formatting.
+        Finds best move or best switch using Minmax
         """
         best_move = None
         max_value = float('-inf')
 
-        # Check if active Pokemon is alive
-        if not self.user.active:
+        # Preliminary check: we change the Pokémon if the type is disadvantageous
+        assert self.user.active is not None
+        assert self.opponent.active is not None
+        if is_type_disadvantageous(self.user.active, self.opponent.active):
+            best_switch = self.find_best_switch()
+            if best_switch:
+                print(f"Suggested switch: {best_switch}")
+                return format_decision(self, f"{constants.SWITCH_STRING} {best_switch.name}")
+
+        # Check if the Pokémon is alive or inactive
+        if not self.user.active.is_alive():
             print("Error: active Pokémon is invalid or exausted.")
             # Returns first available switch
             switches = [f"{constants.SWITCH_STRING} {name}" for name in self.user.get_switches()]
@@ -50,7 +62,7 @@ class BattleBot(Battle):
             if not switches:
                 print("Error: no available switch.")
                 return ["no valid move or switch"]
-            
+
             switch = self.find_best_switch()
             if switch is None:
                 switch = self.get_pkmn_by_switch(switches[0])
@@ -77,14 +89,14 @@ class BattleBot(Battle):
         # Select highest damage move
         if best_move:
             selected_move = format_decision(self, best_move)
-            print(f"Best found mmove: {selected_move}")
+            print(f"Best found move: {selected_move}")
             return selected_move # returns formatted decision
 
         # In case there are no valid moves pokemons get switched
         switch = self.find_best_switch()
         assert switch is not None
         selected_switch = format_decision(self, f"{constants.SWITCH_STRING} {switch.name}")
-        print(f"Switch selezionato: {selected_switch}")
+        print(f"Selected switch: {selected_switch}")
         return selected_switch
 
     @staticmethod
@@ -122,10 +134,11 @@ class BattleBot(Battle):
 
                     damage = calculate_damage(self.user.active, self.opponent.active, move)
                     damage *= type_multiplier
+                    damage *= (self.user.active.level / self.opponent.active.level)
 
                     self.opponent.active.hp -= math.floor(damage)
                     print(
-                        f"{move.name} inflicted {damage} hp of damage to {self.opponent.active.name} with an efficacy multiplier of {type_multiplier}.")
+                        f"{move.name} inflicted {damage:.2f} hp of damage to {self.opponent.active.name} with an efficacy multiplier of {type_multiplier}.")
 
                     if move.status is not None:
                         # The move has no secondary effects
@@ -141,7 +154,7 @@ class BattleBot(Battle):
         """Restores battle state after single move simulation"""
         self.__dict__.update(saved_state.__dict__)
 
-    def minimax(self, is_maximizing: bool, alpha: float, beta: float, max_depth: int = 3) -> float:
+    def minimax(self, is_maximizing: bool, alpha: float, beta: float, max_depth: int = 5) -> float:
         """Minimax algorithm with Alpha-Beta cutting-out."""
         # End conditions: max-depth reached or match ended
         if max_depth == 0 or self.game_over():
@@ -225,17 +238,42 @@ class BattleBot(Battle):
             print(f"Error: Pokemon not alive. score {score}.")
             return score
 
-        # Score calculation based of HP of active Pokemons
-        score += self.user.active.hp
-        score -= self.opponent.active.hp
+        if hasattr(self.user, 'consecutive_switches') and self.user.consecutive_switches > 1:
+            score -= self.user.consecutive_switches * self.consecutive_switch_penalty
 
-        # Bonus/penalty for each attitional pokemon in each team
-        score += len([pokemon for pokemon in self.user.reserve if pokemon.hp > 0])
-        score -= len([pokemon for pokemon in self.opponent.reserve if pokemon.hp > 0])
+        # 1. Scores by hp difference and level
+        score += (self.user.active.hp - self.opponent.active.hp) + (
+                self.user.active.level - self.opponent.active.level) * 10
 
-        # Penalty for disvantageous pokemon type
+        # 2. bonus/penalty for alive reserve
+        score += sum(10 for p in self.user.reserve if p.hp > 0)
+        score -= sum(10 for p in self.opponent.reserve if p.hp > 0)
+
+        # 3. bonus/penalty for type advantage/disadvantage
         if is_type_disadvantageous(self.user.active, self.opponent.active):
-            score -= 50
+            score -= -40
+        else:
+            score += 50
+
+        #4 bonus for weather conditions
+        if self.weather == 'sunnyday' and 'Fire' in self.user.active.types:
+            score += 10
+        elif self.weather == 'raindance' and 'Water' in self.user.active.types:
+            score += 10
+
+        # 5. Penalty for status conditions
+        if self.user.active.status == constants.PARALYZED:
+            score -= 20
+        elif self.user.active.status == constants.POISON:
+            score -= 15
+        elif self.user.active.status == 'badly poisoned':
+            score -= 25
+        elif self.user.active.status == constants.BURN:
+            score -= 20
+        elif self.user.active.status == constants.SLEEP:
+            score -= 30
+        elif self.user.active.status == constants.FROZEN:
+            score -= 40
 
         return score
 
@@ -250,7 +288,7 @@ class BattleBot(Battle):
             # Evaluate reserve pokemon types resistance
             if self.opponent.active is None:
                 print("opponent pokemon is None")
-                continue
+                return pokemon_to_switch
 
             resistance = 1
             for opponent_pokemon_type in self.opponent.active.types:
@@ -261,7 +299,7 @@ class BattleBot(Battle):
                 max_resistance = resistance
                 best_switch = pokemon_to_switch
 
-        
+
         print(f"best switch: {best_switch}")
 
         return best_switch
@@ -270,8 +308,14 @@ class BattleBot(Battle):
         """
         Returns the pokemon with the name took from user reserve.
         """
+
+        # Remove switch prefix if present
+        if name.startswith(f"{constants.SWITCH_STRING} "):
+            name = name.split(" ", 1)[1]
+
+        normalized_name: str = helpers.normalize_name(name)
         for pokemon in self.user.reserve:
-            if pokemon.name.lower() == name.lower():
+            if pokemon.name.lower() == normalized_name:
                 return pokemon
         return None
 
@@ -293,23 +337,35 @@ class BattleBot(Battle):
         reserve_opponent_alive = not self.opponent.get_switches() == []
 
         # if no pokemon is alive battle is over
-        return not (user_pokemon_alive or reserve_pokemon_alive or opponent_pokemon_alive or reserve_opponent_alive)
+        return not (user_pokemon_alive or reserve_pokemon_alive) or not (
+                opponent_pokemon_alive or reserve_opponent_alive)
 
 
 def is_type_disadvantageous(user: Pokemon, opponent: Pokemon) -> bool:
-    """Checka if Pokemon type se il tipo del Pokémon usato dal bot è adatto allo scontro contro i due tipi avversari"""
+    """Checks if Pokemon type is disvantageus or not"""
     user_pokemon_types = user.types
     opponent_pokemon_types = opponent.types
 
-    total_disadvantage = 1
-    for user_pokemon_type in user_pokemon_types:
-        for opponent_pokemon_type in opponent_pokemon_types:
-            disadvantage = constants.TYPE_EFFECTIVENESS[opponent_pokemon_type][user_pokemon_type]
-            total_disadvantage *= disadvantage
+    # Advantage and disadvantage evaluations
+    advantage_count = 0
+    disadvantage_count = 0
+    total_multiplier = 1
 
-    return total_disadvantage < 1
+    for user_type in user_pokemon_types:
+        for opponent_type in opponent_pokemon_types:
 
+            multiplier = constants.TYPE_EFFECTIVENESS[opponent_type].get(user_type, 1)
 
+            if multiplier > 1:
+                advantage_count += 1
+            elif multiplier < 1:
+                disadvantage_count += 1
+
+            total_multiplier *= multiplier
+
+    return disadvantage_count > advantage_count or total_multiplier < 1
+
+@staticmethod
 def calculate_type_multiplier(move_type: str, defender_types: list[str]) -> float:
     """Calculates damage multiplier considering defender's type(s)"""
     multiplier = 1.0
@@ -320,22 +376,30 @@ def calculate_type_multiplier(move_type: str, defender_types: list[str]) -> floa
 
     return multiplier
 
+@staticmethod
+def calculate_damage(attacker: Pokemon, defender: Pokemon, move: Move) -> int:
+    """Calculate damage inflicted by move"""
 
-def calculate_damage(attacker: Pokemon, defender: Pokemon, move: Move) -> float:
-    """Calculated damage inflicted by the move"""
+    level = attacker.level
 
     attack_stat = get_attack_stat(attacker, move)
     defense_stat = get_defense_stat(defender, move)
 
     # Damage calculus from "Gen V onward": https://bulbapedia.bulbagarden.net/wiki/Damage
-    level_dmg = 2 * attacker.level / 5 + 2
-    power_dmg = level_dmg * move.basePower * (attack_stat / defense_stat) / 50
-    burn = 1.5 if defender.status == constants.BURN else 1
-    damage = power_dmg * burn + 2
+    damage = (((2 * level / 5 + 2) * move.basePower * (attack_stat / defense_stat)) / 50 + 2)
 
-    # Viene aggiunto un moltiplicatore di danno per il tipo
+    # Apply Same-Type Attack Bonus (STAB)
+    if move.type in attacker.types:
+        damage *= 1.5
+
+    # Add type multiplier
     type_multiplier = calculate_type_multiplier(move.type, defender.types)
-    return damage * type_multiplier
+    damage *= type_multiplier
+
+    # Apply random variance
+    damage *= random.uniform(0.85, 1.0)
+
+    return int(damage)
 
 def get_attack_stat(pokemon: Pokemon, move: Move) -> float:
     return pokemon.stats[constants.ATTACK] if move.category == constants.PHYSICAL else pokemon.stats[constants.SPECIAL_ATTACK]
