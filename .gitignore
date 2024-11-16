@@ -1,8 +1,8 @@
 logs/
-venv/
+*venv/
 .idea/
 **/actual_states/*
-**/__pycache__/*
+**__pycache__*
 creds
 *.xlsx
 *.txt

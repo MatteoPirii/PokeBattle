@@ -1,0 +1,22 @@
+version: "2.27"
+
+services:
+  poke-battle:
+    image: "pokebot:latest-alpine"
+    container_name: "poke-battle"
+
+    build:
+      context: .
+      dockerfile: Dockerfile-dev
+      
+    env_file: env
+    stdin_open: true
+    tty: true
+
+    develop:
+      watch:
+        - path: ./showdown/battle_bots/
+          action: sync
+          target: /app/showdown/battle_bots/
+        - path: requirements.txt
+          action: rebuild
