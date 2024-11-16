@@ -293,15 +293,8 @@ class BattleBot(Battle):
 
     def find_best_switch(self) -> Pokemon | None:
         """Find best pokemon in the team to make the switch"""
-        best_switch = None
-        second_best_switch = None
         best_pokemon = None
-        max_resistance = float('-inf')
-        second_max_resistance = float('-inf')
-        max_from_moves = float('-inf')
-
-        # Dictionary for move scores
-        move_scores = {}
+        max_score = float('-inf')
 
         for switch in self.user.get_switches():
             pokemon_to_switch = self.get_pokemon_by_name(switch)
@@ -312,41 +305,26 @@ class BattleBot(Battle):
 
             # Evaluate the resistance of the reserve Pokémon against the opponent's type
             resistance = 0
-            for opponent_pokemon_type in self.opponent.active.types:
-                for pokemon_to_switch_type in pokemon_to_switch.types:
-                    resistance += constants.TYPE_EFFECTIVENESS[opponent_pokemon_type][pokemon_to_switch_type]
+            for opponent_type in self.opponent.active.types:
+                for switch_type in pokemon_to_switch.types:
+                    resistance += constants.TYPE_EFFECTIVENESS[opponent_type].get(switch_type, 1)
 
-            if resistance > max_resistance:
-                second_max_resistance = max_resistance
-                second_best_switch = switch
+            # Calculate the move score
+            move_score = self.pokemon_score_moves(pokemon_to_switch.name)
 
-                max_resistance = resistance
-                best_switch = switch
+            # Combine resistance and move score for overall evaluation
+            total_move_score = resistance + move_score
 
-                f"BEST SWITCHES: {best_switch}, {max_resistance}, {second_best_switch}, {second_max_resistance}"
-        
-        best_switches = [best_switch, second_best_switch]
+            if total_move_score > max_score:
+                max_score = total_move_score
+                best_pokemon = pokemon_to_switch
 
         # Check the moves of the two best switches and declare the better one
-        for best in best_switches:
-            if best is not None:
-                dictionary_key = (best, self.opponent.active.name)
-                f"Dictionary key: {dictionary_key}"
-                # Check if the score is already calculated
-                if dictionary_key in move_scores:
-                    moves_gain = move_scores[dictionary_key]
-                else:
-                    moves_gain = self.pokemon_score_moves(best)
-                    # Save the score in the dictionary
-                    move_scores[dictionary_key] = moves_gain
+        if best_pokemon:
+            print(f"Best switch: {best_pokemon.name} with a total score of {max_score}") if self.debug else None
+        else:
+            print("No suitable Pokémon found.") if self.debug else None
 
-                if moves_gain > max_from_moves:
-                    print(f"Moves gain for {best}: {moves_gain}")
-                    max_from_moves = moves_gain
-                    best_pokemon = best
-        
-        print(f"DICT: {move_scores}")
-        print(f"best switch: {best_switch}") if self.debug else None
         return best_pokemon
 
     # Check the available moves for the Pokémon you're considering switching to (given the current opponent) 
@@ -362,7 +340,6 @@ class BattleBot(Battle):
         total_score = 0
         
         for move in pokemon.moves:
-            print(f"Move AAAA: {move}")
             move_score = self.evaluate_move(move)
             total_score += move_score
         
@@ -372,22 +349,24 @@ class BattleBot(Battle):
 
     def evaluate_move(self, move):
         """Evaluate the move based on the type effectiveness against the opponent's Pokémon"""
-        move_name = str(move)
-        move_data = all_move_json.get(move_name.lower())
-        if not move_data:
-            print(f"Error: Move {move} not found.")
+        if isinstance(move_name, Move):
+            move_name = move_name.name  # Usa il nome se è un oggetto Move
+
+        move = Move(move_name)  # Create an instance of Move using the move name as a string
+        if not move:
+            print(f"Error: Move {move_name} not found.") if self.debug else None
             return 0
 
         # Calculate the type multiplier
-        type_multiplier = calculate_type_multiplier(move_data['type'], self.opponent.active.types)
+        type_multiplier = calculate_type_multiplier(move.type, self.opponent.active.types)
         # Calculate the damage inflicted
-        damage = calculate_damage(self.user.active, self.opponent.active, move_data) * type_multiplier
+        damage = calculate_damage(self.user.active, self.opponent.active, move) * type_multiplier
 
         # Consider the level of the opponent's Pokémon
         damage *= (self.user.active.level / self.opponent.active.level)
 
-        print(f"La mossa {move_data['name']} infligge {damage:.2f} danni a {self.opponent.active.name}.")
-
+        print(f"Move {move.name} inflicts {damage:.2f} damage to {self.opponent.active.name}.") if self.debug else None
+        
         return damage
 
 
