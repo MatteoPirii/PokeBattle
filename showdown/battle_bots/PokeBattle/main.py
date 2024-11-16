@@ -30,14 +30,13 @@ class BattleBot(Battle):
 
         # Check if the Pokémon is alive or inactive
         if not self.user.active.is_alive():
-            print("Error: active Pokémon is invalid or exausted.") if self.debug else None
-            # Returns first available switch
+            print("Error: active Pokémon is invalid or exhausted.") if self.debug else None
             switches = [f"{constants.SWITCH_STRING} {name}" for name in self.user.get_switches()]
             if switches:
-                selected_switch = format_decision(self, switches[0])
-                print(f"Selected switch: {selected_switch}") if self.debug else None
-                return selected_switch
-            return ["no valid move or switch"]
+                selected_switch = self.find_best_switch()
+                if selected_switch:
+                    self.apply_move(f"{constants.SWITCH_STRING} {selected_switch.name}")
+                    return format_decision(self, f"{constants.SWITCH_STRING} {selected_switch.name}")
 
         # Get all available moves and switches
         user_options, _ = self.get_all_options()
@@ -88,12 +87,8 @@ class BattleBot(Battle):
             print(f"Best found move: {selected_move}") if self.debug else None
             return selected_move  # returns formatted decision
 
-            # In case there are no valid moves Pokémon get switched (dead code)
-            switch = self.find_best_switch()
-            assert switch is not None
-            selected_switch = format_decision(self, f"{constants.SWITCH_STRING} {switch.name}")
-            print(f"Selected switch: {selected_switch}") if self.debug else None
-            return selected_switch
+        # If no optimal switches of moves
+        return random.choice(user_options)
 
     @staticmethod
     def options_categorization(options: list[str]) -> tuple[list[str], list[str]]:
@@ -150,7 +145,7 @@ class BattleBot(Battle):
         """Restores battle state after single move simulation"""
         self.__dict__.update(saved_state.__dict__)
 
-    def minimax(self, is_maximizing: bool, alpha: float, beta: float, max_depth: int = 7) -> float:
+    def minimax(self, is_maximizing: bool, alpha: float, beta: float, max_depth: int = 9) -> float:
         """Minimax algorithm with Alpha-Beta cutting-out."""
         # End conditions: max-depth reached or match ended
         if max_depth == 0 or self.game_over():
@@ -197,7 +192,7 @@ class BattleBot(Battle):
             if beta <= alpha:
                 break  # Alpha-Beta pruning
 
-        if ineffective_moves and max_depth == 7:
+        if ineffective_moves and max_depth == 9:
             print("Every move is ineffective, looking for a switch") if self.debug else None
             switch = self.find_best_switch()
             if switch is None:
@@ -292,7 +287,7 @@ class BattleBot(Battle):
         return risk_score  # Negative for riskier moves
 
     def find_best_switch(self) -> Pokemon | None:
-        """Find best pokemon in the team to make the switch"""
+        """Find the best Pokémon in the team to make the switch."""
         best_pokemon = None
         max_score = float('-inf')
 
@@ -300,7 +295,7 @@ class BattleBot(Battle):
             pokemon_to_switch = self.get_pokemon_by_name(switch)
 
             if pokemon_to_switch is None:
-                print(f"Error: {pokemon_to_switch.name} is not in the user's reserve.") if self.debug else None
+                print(f"Error: Pokémon {switch} not found in the user's reserve.") if self.debug else None
                 continue
 
             # Evaluate the resistance of the reserve Pokémon against the opponent's type
@@ -319,7 +314,6 @@ class BattleBot(Battle):
                 max_score = total_move_score
                 best_pokemon = pokemon_to_switch
 
-        # Check the moves of the two best switches and declare the better one
         if best_pokemon:
             print(f"Best switch: {best_pokemon.name} with a total score of {max_score}") if self.debug else None
         else:
@@ -327,28 +321,26 @@ class BattleBot(Battle):
 
         return best_pokemon
 
-    # Check the available moves for the Pokémon you're considering switching to (given the current opponent) 
-    # and calculate the damage they would inflict
-    def pokemon_score_moves(self, pokemon_name): #, opponent_pokemon_name):
-        """Find if the moves of the pokemon are good or not"""
+    def pokemon_score_moves(self, pokemon_name):
+        """Find if the moves of the Pokémon are good or not"""
         pokemon = self.get_pokemon_by_name(pokemon_name)  # Get Pokémon object from the name
-        
+
         if pokemon is None:
             print(f"Error: Pokémon {pokemon_name} not found.")
             return 0
-        
+
         total_score = 0
-        
+
         for move in pokemon.moves:
             move_score = self.evaluate_move(move)
             total_score += move_score
-        
-        print(f"Total score for {self.user.name}: {total_score}")
-        
+
+        print(f"Total score for {self.user.name}: {total_score}") if self.debug else None
+
         return total_score
 
-    def evaluate_move(self, move):
-        """Evaluate the move based on the type effectiveness against the opponent's Pokémon"""
+    def evaluate_move(self, move_name: str) -> float:
+        """Evaluate the move based on the type effectiveness against the opponent's Pokémon."""
         if isinstance(move_name, Move):
             move_name = move_name.name  # Usa il nome se è un oggetto Move
 
@@ -359,17 +351,14 @@ class BattleBot(Battle):
 
         # Calculate the type multiplier
         type_multiplier = calculate_type_multiplier(move.type, self.opponent.active.types)
-        # Calculate the damage inflicted
+        # Calculate the potential damage inflicted
         damage = calculate_damage(self.user.active, self.opponent.active, move) * type_multiplier
 
-        # Consider the level of the opponent's Pokémon
+        # Consider the opponent's Pokémon level
         damage *= (self.user.active.level / self.opponent.active.level)
 
         print(f"Move {move.name} inflicts {damage:.2f} damage to {self.opponent.active.name}.") if self.debug else None
-        
         return damage
-
-
 
     def get_pokemon_by_name(self, name: str) -> Pokemon | None:
         """Returns the Pokémon with the name took from user reserve."""
@@ -525,6 +514,9 @@ def is_type_advantage_move(move_name: str, opponent_types: list[str]) -> bool:
 
 
 def get_attack_stat(pokemon: Pokemon, move: Move) -> float:
+    if not isinstance(move, Move):
+        raise TypeError(f"Expected move to be an instance of Move, got {type(move).__name__}")
+
     return pokemon.stats[constants.ATTACK] if move.category == constants.PHYSICAL else pokemon.stats[
         constants.SPECIAL_ATTACK]
 
