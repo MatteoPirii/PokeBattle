@@ -1,32 +1,43 @@
+import constants
 import json
 import math
 import random
 import time
-from copy import deepcopy
-# from typing import override
 
-import constants
+from copy import deepcopy
 from data import pokedex
 from showdown.battle import Battle, Pokemon, Move
 from showdown.battle_bots.helpers import format_decision
 from showdown.engine import helpers
+# from typing import override
 
 # JSON file containing all moves
 with open('data/moves.json', 'r') as f:
-    all_move_json = json.load(f)
+    all_moves = json.load(f)
 
 
 class BattleBot(Battle):
 
     def __init__(self, *args, **kwargs):
         super(BattleBot, self).__init__(*args, **kwargs)
+        self.consecutive_switches = 0
         self.consecutive_switch_penalty = 10
         self.debug = False
 
-    def find_best_move(self):
+    def find_best_move(self) -> list[str]:
         """Finds best move or best switch using Minmax"""
         best_move = None
         max_value = float('-inf')
+
+        # Preliminary check: we change the Pokémon if the type is disadvantageous
+        assert self.user.active is not None
+        assert self.opponent.active is not None
+        if is_type_disadvantageous(self.user.active, self.opponent.active):
+            best_switch = self.find_best_switch()
+            if best_switch:
+                print(f"Suggested switch: {best_switch}")
+                self.consecutive_switches += 1
+                return format_decision(self, f"{constants.SWITCH_STRING} {best_switch.name}")
 
         # Check if the Pokémon is alive or inactive
         if not self.user.active.is_alive():
@@ -37,6 +48,8 @@ class BattleBot(Battle):
                 if selected_switch:
                     self.apply_move(f"{constants.SWITCH_STRING} {selected_switch.name}")
                     return format_decision(self, f"{constants.SWITCH_STRING} {selected_switch.name}")
+            else: 
+                return ["no valid move or switch"]
 
         # Get all available moves and switches
         user_options, _ = self.get_all_options()
@@ -55,8 +68,10 @@ class BattleBot(Battle):
             switch = self.find_best_switch()
             if switch is None:
                 switch = self.get_pkmn_by_switch(switches[0])
+
             selected_switch = format_decision(self, f"{constants.SWITCH_STRING} {switch.name}")
             print(f"Selected switch: {selected_switch}") if self.debug else None
+            self.consecutive_switches += 1
             return selected_switch
 
         # Prioritize type advantage moves
@@ -88,7 +103,7 @@ class BattleBot(Battle):
             return selected_move  # returns formatted decision
 
         # If no optimal switches of moves
-        return random.choice(user_options)
+        return [random.choice(user_options)]
 
     @staticmethod
     def options_categorization(options: list[str]) -> tuple[list[str], list[str]]:
@@ -109,37 +124,38 @@ class BattleBot(Battle):
 
         if constants.SWITCH_STRING in move_name and len(move_part) > 1:
             self.user.active = Pokemon.from_switch_string(move_part[1])
-        else:
-            # Damage, status effect and stats changes simulation
-            move = Move(move_name)
+            return
 
-            if move:
-                # Accuracy based move success rate calculation
-                if random.randint(1, 100) <= move.accuracy:
-                    assert self.user.active is not None
-                    assert self.opponent.active is not None
-                    print(f"{self.user.active.name} use {move.name}") if self.debug else None
+        assert self.user.active is not None
+        # Damage, status effect and stats changes simulation
+        move = Move(move_name)
 
-                    # Damage calculation considering types
-                    type_multiplier = calculate_type_multiplier(move.type, self.opponent.active.types)
+        # Accuracy based move success rate calculation
+        random_accuracy = random.randint(1, 100)
+        if random_accuracy > move.accuracy:
+            print(f"{self.user.active.name} missed the move {move.name}.") if self.debug else None
+            return
 
-                    damage = calculate_damage(self.user.active, self.opponent.active, move)
-                    damage *= type_multiplier
-                    damage *= (self.user.active.level / self.opponent.active.level)
+        assert self.opponent.active is not None
+        print(f"{self.user.active.name} use {move.name}") if self.debug else None
 
-                    self.opponent.active.hp -= math.floor(damage)
-                    print(f"{move.name} inflicted {damage:.2f} hp of damage to {self.opponent.active.name} with an "
+        # Damage calculation considering types
+        type_multiplier = calculate_type_multiplier(move.type, self.opponent.active.types)
+
+        damage = calculate_damage(self.user.active, self.opponent.active, move)
+        damage *= type_multiplier
+        damage *= (self.user.active.level / self.opponent.active.level)
+
+        self.opponent.active.hp -= math.floor(damage)
+        print(f"{move.name} inflicted {damage:.2f} hp of damage to {self.opponent.active.name} with an "
                           f"efficacy multiplier of {type_multiplier}.") if self.debug else None
 
-                    if move.status is not None:
-                        # The move has no secondary effects
-                        self.opponent.active.status = move.status
-                        print(f"{self.opponent.active.name} has been {move.status}!") if self.debug else None
-                else:
-                    assert self.user.active is not None
-                    print(f"{self.user.active.name} missed the move {move.name}.") if self.debug else None
-            else:
-                print(f"Error: move {move_name} not found") if self.debug else None
+        # The move has no secondary effects
+        if move.status is not None:
+            self.opponent.active.status = move.status
+            print(f"{self.opponent.active.name} has been {move.status}!")  if self.debug else None
+        else:
+            print(f"{self.user.active.name} missed the move {move.name}.") if self.debug else None
 
     def restore_state(self, saved_state):
         """Restores battle state after single move simulation"""
@@ -158,7 +174,7 @@ class BattleBot(Battle):
             # Switching Pokémon
             switch = self.find_best_switch()
             if switch:
-                self.apply_move(f"Switch {switch}") if self.debug else None
+                self.apply_move(f"{constants.SWITCH_STRING} {switch}") if self.debug else None
             return float('-inf')  # In case of no valid option the minimum evaluation is returned
 
         if is_maximizing:
@@ -177,7 +193,7 @@ class BattleBot(Battle):
             self.apply_move(move)
 
             # Move effectiveness check
-            move_type = all_move_json.get(move.lower(), {}).get('type', None)
+            move_type = all_moves.get(move.lower(), {}).get('type', None)
             if move_type:
                 assert self.opponent.active is not None, "opponent pokemon shouldn't be None"
                 type_multiplier = calculate_type_multiplier(move_type, self.opponent.active.types)
@@ -218,7 +234,7 @@ class BattleBot(Battle):
                 break  # Alpha-Beta pruning
         return min_eval
 
-    def evaluate_state(self):
+    def evaluate_state(self) -> float:
         """Battle state evaluation"""
         score = 0
 
@@ -230,8 +246,8 @@ class BattleBot(Battle):
             print(f"Error: Pokemon not alive. score {score}.") if self.debug else None
             return score
 
-        if hasattr(self.user, 'consecutive_switches') and self.user.consecutive_switches > 1:
-            score -= self.user.consecutive_switches * self.consecutive_switch_penalty
+        if self.consecutive_switches > 1:
+            score -= self.consecutive_switches * self.consecutive_switch_penalty
 
         # 1. Scores by hp difference and level
         score += (self.user.active.hp - self.opponent.active.hp) + (
@@ -298,6 +314,7 @@ class BattleBot(Battle):
                 print(f"Error: Pokémon {switch} not found in the user's reserve.") if self.debug else None
                 continue
 
+            assert self.opponent.active is not None
             # Evaluate the resistance of the reserve Pokémon against the opponent's type
             resistance = 0
             for opponent_type in self.opponent.active.types:
@@ -348,6 +365,9 @@ class BattleBot(Battle):
         if not move:
             print(f"Error: Move {move_name} not found.") if self.debug else None
             return 0
+
+        assert self.opponent.active is not None
+        assert self.user.active is not None
 
         # Calculate the type multiplier
         type_multiplier = calculate_type_multiplier(move.type, self.opponent.active.types)
