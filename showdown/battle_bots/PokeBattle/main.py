@@ -20,7 +20,6 @@ class BattleBot(Battle):
 
     def __init__(self, *args, **kwargs):
         super(BattleBot, self).__init__(*args, **kwargs)
-        self.consecutive_switches = 0
         self.consecutive_switch_penalty = 10
         self.debug = False
 
@@ -36,7 +35,7 @@ class BattleBot(Battle):
             best_switch = self.find_best_switch()
             if best_switch:
                 print(f"Suggested switch: {best_switch}")
-                self.consecutive_switches += 1
+                self.user.consecutive_switches += 1
                 return format_decision(self, f"{constants.SWITCH_STRING} {best_switch.name}")
 
         # Check if the Pokémon is alive or inactive
@@ -71,7 +70,7 @@ class BattleBot(Battle):
 
             selected_switch = format_decision(self, f"{constants.SWITCH_STRING} {switch.name}")
             print(f"Selected switch: {selected_switch}") if self.debug else None
-            self.consecutive_switches += 1
+            self.user.consecutive_switches += 1
             return selected_switch
 
         # Prioritize type advantage moves
@@ -246,8 +245,8 @@ class BattleBot(Battle):
             print(f"Error: Pokemon not alive. score {score}.") if self.debug else None
             return score
 
-        if self.consecutive_switches > 1:
-            score -= self.consecutive_switches * self.consecutive_switch_penalty
+        if hasattr(self.user, 'consecutive_switches') and self.user.consecutive_switches > 1:
+            score -= self.user.consecutive_switches * self.consecutive_switch_penalty
 
         # 1. Scores by hp difference and level
         score += (self.user.active.hp - self.opponent.active.hp) + (
