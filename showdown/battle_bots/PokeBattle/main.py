@@ -9,6 +9,7 @@ from data import pokedex
 from showdown.battle import Battle, Pokemon, Move
 from showdown.battle_bots.helpers import format_decision
 from showdown.engine import helpers
+
 # from typing import override
 
 # JSON file containing all moves
@@ -133,12 +134,12 @@ class BattleBot(Battle):
 
         self.opponent.active.hp -= math.floor(damage)
         print(f"{move.name} inflicted {damage:.2f} hp of damage to {self.opponent.active.name} with an "
-                          f"efficacy multiplier of {type_multiplier}.") if self.debug else None
+              f"efficacy multiplier of {type_multiplier}.") if self.debug else None
 
         # The move has no secondary effects
         if move.status is not None:
             self.opponent.active.status = move.status
-            print(f"{self.opponent.active.name} has been {move.status}!")  if self.debug else None
+            print(f"{self.opponent.active.name} has been {move.status}!") if self.debug else None
         else:
             print(f"{self.user.active.name} missed the move {move.name}.") if self.debug else None
 
@@ -185,9 +186,12 @@ class BattleBot(Battle):
 
             eval = self.minimax(False, alpha, beta, max_depth - 1)  # Opponent turn
             self.restore_state(saved_state)
-            max_eval = max(max_eval, eval)
-            alpha = max(alpha, eval)
-            if beta <= alpha:
+
+            if eval > max_eval:
+                max_eval = eval
+                alpha = max(alpha, eval)
+
+            if max_eval >= beta:  # Compare v with beta for pruning
                 break  # Alpha-Beta pruning
 
         if ineffective_moves and max_depth == 9:
@@ -210,10 +214,14 @@ class BattleBot(Battle):
             self.apply_move(move)
             eval = self.minimax(True, alpha, beta, max_depth - 1)  # Bot turn, maximizing
             self.restore_state(saved_state)
-            min_eval = min(min_eval, eval)
-            beta = min(beta, eval)
-            if beta <= alpha:
-                break  # Alpha-Beta pruning
+
+            if eval < min_eval:
+                min_eval = eval
+                beta = min(beta, eval)
+
+            if min_eval <= alpha:
+                break
+
         return min_eval
 
     def evaluate_state(self) -> float:
