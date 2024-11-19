@@ -7,10 +7,11 @@ import time
 from copy import deepcopy
 from data import pokedex
 from showdown.battle import Battle, Pokemon, Move
+from showdown.battle_bots.PokeBattle import utility
 from showdown.battle_bots.helpers import format_decision
 from showdown.engine import helpers
 
-# from typing import override
+MAX_DEPTH = 9 #maximum depth of exploration for minimax
 
 # JSON file containing all moves
 with open('data/moves.json', 'r') as f:
@@ -22,6 +23,7 @@ class BattleBot(Battle):
     def __init__(self, *args, **kwargs):
         super(BattleBot, self).__init__(*args, **kwargs)
         self.debug = False
+        self.start_time: float = 0
 
     def find_best_move(self) -> list[str]:
         """Finds best move or best switch using Minmax"""
@@ -45,8 +47,7 @@ class BattleBot(Battle):
         print(f"Available moves: {user_options}") if self.debug else None
         moves, switches = BattleBot.options_categorization(user_options)
 
-        start_time = time.time()  # timer start
-        time_limit = 2 * 60 + 30  # 2 minutes 30 seconds time limit
+        self.start_time = time.time()  # timer start
 
         # If we're forced to switch or there are no available moves the first switch is returned
         if self.force_switch or not moves:
@@ -70,10 +71,6 @@ class BattleBot(Battle):
 
         # Execute MinMax for each option
         for move in moves:
-            if time.time() - start_time > time_limit:
-                print("Time expired, returning best found move") if self.debug else None
-                break
-
             saved_state = deepcopy(self)  # Saving the battle state
             self.apply_move(move)  # Choice simulation
             move_value = self.minimax(is_maximizing=True, alpha=float('-inf'), beta=float('inf'))
@@ -123,8 +120,6 @@ class BattleBot(Battle):
             print(f"{self.user.active.name} missed the move {move.name}.") if self.debug else None
             return
 
-        print(f"{self.user.active.name} use {move.name}") if self.debug else None
-
         # Damage calculation considering types
         type_multiplier = calculate_type_multiplier(move.type, self.opponent.active.types)
 
@@ -147,11 +142,8 @@ class BattleBot(Battle):
         """Restores battle state after single move simulation"""
         self.__dict__.update(saved_state.__dict__)
 
-    def minimax(self, is_maximizing: bool, alpha: float, beta: float, max_depth: int = 9) -> float:
+    def minimax(self, is_maximizing: bool, alpha: float, beta: float, max_depth: int = MAX_DEPTH) -> float:
         """Minimax algorithm with Alpha-Beta cutting-out."""
-        # End conditions: max-depth reached or match ended
-        if max_depth == 0 or self.game_over():
-            return self.evaluate_state()
 
         if not self.user.active.is_alive():
             print("Error: No pokemon alive") if self.debug else None
@@ -174,6 +166,9 @@ class BattleBot(Battle):
 
         for move in user_options:
             saved_state = deepcopy(self)  # Savestate before moving
+
+            if self.is_terminal(max_depth):
+                return self.evaluate_state()
             self.apply_move(move)
 
             # Move effectiveness check
@@ -194,7 +189,7 @@ class BattleBot(Battle):
             if max_eval >= beta:  # Compare v with beta for pruning
                 break  # Alpha-Beta pruning
 
-        if ineffective_moves and max_depth == 9:
+        if ineffective_moves and max_depth == MAX_DEPTH:
             print("Every move is ineffective, looking for a switch") if self.debug else None
             switch = self.find_best_switch()
             if switch is None:
@@ -211,6 +206,9 @@ class BattleBot(Battle):
 
         for move in opponent_options:
             saved_state = deepcopy(self)  # Save battle state before moving
+            if self.is_terminal(max_depth):
+                return self.evaluate_state()
+
             self.apply_move(move)
             eval = self.minimax(True, alpha, beta, max_depth - 1)  # Bot turn, maximizing
             self.restore_state(saved_state)
@@ -223,6 +221,18 @@ class BattleBot(Battle):
                 break
 
         return min_eval
+
+    def is_terminal(self, max_depth: int) -> bool:
+        "Checks weather or not the game is in a terminal state"
+        if utility.is_time_over(self):
+            print("Time expired, returning best found move") if self.debug else None
+            return True
+
+        # End conditions: max-depth reached or match ended
+        if max_depth == 0 or self.game_over():
+            return True
+
+        return False
 
     def evaluate_state(self) -> float:
         """Battle state evaluation"""
@@ -277,9 +287,9 @@ class BattleBot(Battle):
         return score
 
     @staticmethod
-    def evaluate_move_risk(move, user_pokemon):
+    def evaluate_move_risk(move: Move, pokemon: Pokemon) -> float:
         """Evaluate the risk posed by an opponent's move based on potential damage."""
-        type_multiplier = calculate_type_multiplier(move.type, user_pokemon.types)
+        type_multiplier = calculate_type_multiplier(move.type, pokemon.types)
         damage_potential = move.basePower * type_multiplier
         accuracy_factor = move.accuracy / 100 if isinstance(move.accuracy, int) else 1  # Account for move accuracy
         risk_score = -(damage_potential * accuracy_factor)
@@ -320,7 +330,7 @@ class BattleBot(Battle):
 
         return best_pokemon
 
-    def pokemon_score_moves(self, pokemon_name):
+    def pokemon_score_moves(self, pokemon_name: str) -> float:
         """Find if the moves of the Pokémon are good or not"""
         pokemon = self.get_pokemon_by_name(pokemon_name)  # Get Pokémon object from the name
 
