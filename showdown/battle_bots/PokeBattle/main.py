@@ -286,43 +286,56 @@ class BattleBot(Battle):
         return risk_score  # Negative for riskier moves
 
     def find_best_switch(self) -> Pokemon | None:
-        """Find the best Pokémon in the team to make the switch."""
+        #Find the best Pokémon in the team to make the switch.
         best_pokemon = None
         max_score = float('-inf')
+        best_pokemon_candidates = []
+
+        opponent_types = self.opponent.active.types
 
         for switch in self.user.get_switches():
             pokemon_to_switch = self.get_pokemon_by_name(switch)
 
             if pokemon_to_switch is None:
-                print(f"Error: Pokémon {switch} not found in the user's reserve.") if self.debug else None
-                continue
+                if self.debug:
+                    print(f"Error: Pokémon {switch} not found in the user's reserve.") 
+                    continue
 
             # Evaluate the resistance of the reserve Pokémon against the opponent's type
             resistance = 0
-            for opponent_type in self.opponent.active.types:
-                for switch_type in pokemon_to_switch.types:
-                    resistance += constants.TYPE_EFFECTIVENESS[opponent_type].get(switch_type, 1)
+            resistance += sum(constants.TYPE_EFFECTIVENESS.get(opponent_type, {}).get(switch_type, 1)
+                              for opponent_type in opponent_types
+                              for switch_type in pokemon_to_switch.types)
 
             # Calculate the move score
-            move_score = self.pokemon_score_moves(pokemon_to_switch.name)
+            best_move_score = self.pokemon_score_moves(pokemon_to_switch.name)
 
             # Combine resistance and move score for overall evaluation
-            total_move_score = resistance + move_score
+            total_move_score = resistance + best_move_score
 
             if total_move_score > max_score:
                 max_score = total_move_score
-                best_pokemon = pokemon_to_switch
-
-        if best_pokemon:
-            print(f"Best switch: {best_pokemon.name} with a total score of {max_score}") if self.debug else None
-        else:
-            print("No suitable Pokémon found.") if self.debug else None
-
+                best_pokemon_candidates = [pokemon_to_switch] # Reset the list of best candidates
+            elif total_move_score == max_score:
+                best_pokemon_candidates.append(pokemon_to_switch) # Add to the list of best candidates
+ 
+        # Choose the best Pokémon from the candidates
+        if best_pokemon_candidates:
+            #if we have more than one candidate choose an heuristic to select the best pokemon
+            #for the moment we choose randomly
+            best_pokemon = random.choice(best_pokemon_candidates) if len(best_pokemon_candidates) > 1 else best_pokemon_candidates[0]
+            if self.debug: 
+                print(f"Best switch: {best_pokemon.name} with a total score of {max_score}")  
+        elif self.debug:
+            print("No suitable Pokémon found.") 
+        
         return best_pokemon
+
 
     def pokemon_score_moves(self, pokemon_name):
         """Find if the moves of the Pokémon are good or not"""
         pokemon = self.get_pokemon_by_name(pokemon_name)  # Get Pokémon object from the name
+        max_score = float('-inf')
 
         if pokemon is None:
             print(f"Error: Pokémon {pokemon_name} not found.")
@@ -332,7 +345,11 @@ class BattleBot(Battle):
 
         for move in pokemon.moves:
             move_score = self.evaluate_move(move)
-            total_score += move_score
+            accuracy_multiplier = move.accuracy / 100 if isinstance(move.accuracy, int) else 1 # Assuming accuracy is between 0 and 100 (adjust the move score based on the accuracy of the move)
+            total_score = move_score * accuracy_multiplier
+
+            if total_score > max_score:
+                max_score = total_score
 
         print(f"Total score for {self.user.name}: {total_score}") if self.debug else None
 
