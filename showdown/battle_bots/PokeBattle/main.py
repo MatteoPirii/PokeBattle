@@ -303,7 +303,7 @@ class BattleBot(Battle):
 
             # Evaluate the resistance of the reserve Pokémon against the opponent's type
             resistance = 0
-            resistance += sum(constants.TYPE_EFFECTIVENESS.get(opponent_type, {}).get(switch_type, 1)
+            resistance += sum(constants.TYPE_EFFECTIVENESS.get(switch_type, {}).get(opponent_type, 1)
                               for opponent_type in opponent_types
                               for switch_type in pokemon_to_switch.types)
 
