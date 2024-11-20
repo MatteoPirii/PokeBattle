@@ -11,7 +11,8 @@ from showdown.battle_bots.PokeBattle import utility
 from showdown.battle_bots.helpers import format_decision
 from showdown.engine import helpers
 
-MAX_DEPTH = 10  # Maximum depth of exploration for minimax
+MAX_DEPTH = 12
+# Maximum depth of exploration for minimax
 
 # JSON file containing all moves
 with open('data/moves.json', 'r') as f:
@@ -184,6 +185,8 @@ class BattleBot(Battle):
 
         # Evaluate switches without saving/restoring state, as it isn't necessary
         for switch in switches:
+            if self.is_terminal(max_depth):
+                return max_eval
             eval = self.evaluate_switch(switch)  # Evaluate based on the current state
 
             if eval > max_eval:
@@ -485,11 +488,17 @@ def calculate_damage(attacker: Pokemon, defender: Pokemon, move: Move) -> int:
     level = attacker.level
     attack_stat = get_attack_stat(attacker, move)
     defense_stat = get_defense_stat(defender, move)
+    # Ensure defense_stat is not zero to avoid division errors
+    defense_stat = max(defense_stat, 1)
+
     damage = (((2 * level / 5 + 2) * move.basePower * (attack_stat / defense_stat)) / 50 + 2)
 
     # STAB (Same-Type Attack Bonus)
+    stab = 1.5 if move.type in attacker.types else 1.0
     if move.type in attacker.types:
-        damage *= stab_modifier(attacker, move)
+        if attacker.terastallized and move.type in pokedex[attacker.id].types:
+            stab = 2  # Terastal provides a 2x STAB
+    damage *= stab
 
     # Add type effectiveness
     type_multiplier = calculate_type_multiplier(move.type, defender.types)
@@ -501,7 +510,7 @@ def calculate_damage(attacker: Pokemon, defender: Pokemon, move: Move) -> int:
     # Apply random variance (from 0.85 to 1.0)
     damage *= random.uniform(0.85, 1.0)
 
-    return int(damage)
+    return max(1, int(damage))
 
 
 def stab_modifier(attacking_pokemon, attacking_move):
@@ -528,13 +537,17 @@ def apply_damage_conditions(defender: Pokemon, move: Move) -> float:
     modifier = 1.0
     side_conditions = getattr(defender, 'side_conditions', {})
 
+    # Critical hits ignore damage reduction
+    if getattr(move, 'critical_hint', False):
+        return 1.0  # Ignore all reductions
+
     # Check defensive conditions
     if side_conditions.get(constants.REFLECT) and move.category == constants.PHYSICAL:
         modifier *= 0.5
     if side_conditions.get(constants.LIGHT_SCREEN) and move.category == constants.SPECIAL:
         modifier *= 0.5
     if side_conditions.get(constants.AURORA_VEIL):
-        modifier *= 0.5
+        modifier *= 0.67
     if defender.ability == "multiscale" and defender.hp == defender.max_hp:
         modifier *= 0.5
     if defender.ability in ["filter", "solid_rock"] and calculate_type_multiplier(move.type, defender.types) > 1:
