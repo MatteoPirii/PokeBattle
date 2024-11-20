@@ -7,10 +7,12 @@ import time
 from copy import deepcopy
 from data import pokedex
 from showdown.battle import Battle, Pokemon, Move
+from showdown.battle_bots.PokeBattle import utility
 from showdown.battle_bots.helpers import format_decision
 from showdown.engine import helpers
 
-# from typing import override
+MAX_DEPTH = 12
+# Maximum depth of exploration for minimax
 
 # JSON file containing all moves
 with open('data/moves.json', 'r') as f:
@@ -22,6 +24,7 @@ class BattleBot(Battle):
     def __init__(self, *args, **kwargs):
         super(BattleBot, self).__init__(*args, **kwargs)
         self.debug = False
+        self.start_time: float = 0
 
     def find_best_move(self) -> list[str]:
         """Finds best move or best switch using Minmax"""
@@ -45,8 +48,7 @@ class BattleBot(Battle):
         print(f"Available moves: {user_options}") if self.debug else None
         moves, switches = BattleBot.options_categorization(user_options)
 
-        start_time = time.time()  # timer start
-        time_limit = 2 * 60 + 30  # 2 minutes 30 seconds time limit
+        self.start_time = time.time()  # timer start
 
         # If we're forced to switch or there are no available moves the first switch is returned
         if self.force_switch or not moves:
@@ -70,10 +72,6 @@ class BattleBot(Battle):
 
         # Execute MinMax for each option
         for move in moves:
-            if time.time() - start_time > time_limit:
-                print("Time expired, returning best found move") if self.debug else None
-                break
-
             saved_state = deepcopy(self)  # Saving the battle state
             self.apply_move(move)  # Choice simulation
             move_value = self.minimax(is_maximizing=True, alpha=float('-inf'), beta=float('inf'))
@@ -118,12 +116,10 @@ class BattleBot(Battle):
         move = Move(move_name)
 
         # Accuracy based move success rate calculation
-        random_accuracy = random.randint(1, 100)
-        if random_accuracy > move.accuracy:
-            print(f"{self.user.active.name} missed the move {move.name}.") if self.debug else None
+        if random.randint(1, 100) > move.accuracy:
+            if self.debug:
+                print(f"{self.user.active.name} missed the move {move.name}.")
             return
-
-        print(f"{self.user.active.name} use {move.name}") if self.debug else None
 
         # Damage calculation considering types
         type_multiplier = calculate_type_multiplier(move.type, self.opponent.active.types)
@@ -147,61 +143,58 @@ class BattleBot(Battle):
         """Restores battle state after single move simulation"""
         self.__dict__.update(saved_state.__dict__)
 
-    def minimax(self, is_maximizing: bool, alpha: float, beta: float, max_depth: int = 9) -> float:
+    def minimax(self, is_maximizing: bool, alpha: float, beta: float, max_depth: int = MAX_DEPTH) -> float:
         """Minimax algorithm with Alpha-Beta cutting-out."""
-        # End conditions: max-depth reached or match ended
-        if max_depth == 0 or self.game_over():
+
+        if len(self.user.reserve) <= 2:
+            max_depth = 7  # Dynamic depth adjustment
+
+        if self.is_terminal(max_depth):
             return self.evaluate_state()
 
-        if not self.user.active.is_alive():
-            print("Error: No pokemon alive") if self.debug else None
-            # Switching Pokémon
-            switch = self.find_best_switch()
-            if switch:
-                self.apply_move(f"{constants.SWITCH_STRING} {switch}") if self.debug else None
-            return float('-inf')  # In case of no valid option the minimum evaluation is returned
-
-        if is_maximizing:
-            return self.max_eval(alpha, beta, max_depth)
-        else:
-            return self.min_eval(alpha, beta, max_depth)
+        return self.max_eval(alpha, beta, max_depth) if is_maximizing else self.min_eval(alpha, beta, max_depth)
 
     def max_eval(self, alpha: float, beta: float, max_depth: int) -> float:
-        ineffective_moves = True  # Move ineffectiveness flag
-
         max_eval = float('-inf')
         user_options, _ = self.get_all_options()
 
-        for move in user_options:
-            saved_state = deepcopy(self)  # Savestate before moving
+        # Separate moves from switches
+        moves = [move for move in user_options if not move.startswith(constants.SWITCH_STRING)]
+        switches = [move for move in user_options if move.startswith(constants.SWITCH_STRING)]
+
+        # Sort moves by importance
+        moves.sort(key=lambda move: self.evaluate_move(move), reverse=True)
+
+        # Evaluate moves
+        for move in moves:
+            saved_state = deepcopy(self)  # Save the battle state before simulating the move
+
+            if self.is_terminal(max_depth):
+                return max_eval
+
             self.apply_move(move)
-
-            # Move effectiveness check
-            move_type = all_moves.get(move.lower(), {}).get('type', None)
-            if move_type:
-                type_multiplier = calculate_type_multiplier(move_type, self.opponent.active.types)
-                print(type_multiplier) if self.debug else None
-                if type_multiplier > 1:
-                    ineffective_moves = False  # Effective move found
-
-            eval = self.minimax(False, alpha, beta, max_depth - 1)  # Opponent turn
-            self.restore_state(saved_state)
+            eval = self.minimax(False, alpha, beta, max_depth - 1)
+            self.restore_state(saved_state)  # Restore the battle state
 
             if eval > max_eval:
                 max_eval = eval
                 alpha = max(alpha, eval)
 
-            if max_eval >= beta:  # Compare v with beta for pruning
-                break  # Alpha-Beta pruning
+            if max_eval >= beta:
+                return max_eval  # Alpha-Beta pruning
 
-        if ineffective_moves and max_depth == 9:
-            print("Every move is ineffective, looking for a switch") if self.debug else None
-            switch = self.find_best_switch()
-            if switch is None:
+        # Evaluate switches without saving/restoring state, as it isn't necessary
+        for switch in switches:
+            if self.is_terminal(max_depth):
                 return max_eval
-            if switch:
-                print(f"Switching with {switch}.") if self.debug else None
-                self.apply_move(f"switch {switch}")
+            eval = self.evaluate_switch(switch)  # Evaluate based on the current state
+
+            if eval > max_eval:
+                max_eval = eval
+                alpha = max(alpha, eval)
+
+            if max_eval >= beta:
+                return max_eval  # Alpha-Beta pruning
 
         return max_eval
 
@@ -211,6 +204,9 @@ class BattleBot(Battle):
 
         for move in opponent_options:
             saved_state = deepcopy(self)  # Save battle state before moving
+            if self.is_terminal(max_depth):
+                return min_eval
+
             self.apply_move(move)
             eval = self.minimax(True, alpha, beta, max_depth - 1)  # Bot turn, maximizing
             self.restore_state(saved_state)
@@ -220,9 +216,21 @@ class BattleBot(Battle):
                 beta = min(beta, eval)
 
             if min_eval <= alpha:
-                break
+                return min_eval
 
         return min_eval
+
+    def is_terminal(self, max_depth: int) -> bool:
+        "Checks weather or not the game is in a terminal state"
+        if utility.is_time_over(self):
+            print("Time expired, returning best found move") if self.debug else None
+            return True
+
+        # End conditions: max-depth reached or match ended
+        if max_depth == 0 or self.game_over():
+            return True
+
+        return False
 
     def evaluate_state(self) -> float:
         """Battle state evaluation"""
@@ -254,6 +262,11 @@ class BattleBot(Battle):
             score += 20
         elif self.weather == 'raindance' and 'Water' in self.user.active.types:
             score += 20
+        # Consider weather-based penalties for the opponent
+        if self.weather == 'sunnyday' and 'Water' in self.opponent.active.types:
+            score -= 15  # Penalty for the opponent
+        elif self.weather == 'raindance' and 'Fire' in self.opponent.active.types:
+            score -= 15  # Penalty for the opponent
 
         # 5. Penalty for status conditions
         status_penalty = {
@@ -266,6 +279,11 @@ class BattleBot(Battle):
         }
         score -= status_penalty.get(self.user.active.status, 0)
 
+        # 6. Bonus for moves that have set up effects (e.g., Swords Dance, Calm Mind)
+        for move in self.user.active.moves:
+            if move.name in ['Swords Dance', 'Calm Mind', 'Nasty Plot']:
+                score += 30  # Arbitrary bonus for setup moves
+
         # Integrate worst-case opponent move analysis
         opponent_moves = self.opponent.active.moves
         if opponent_moves:
@@ -277,9 +295,9 @@ class BattleBot(Battle):
         return score
 
     @staticmethod
-    def evaluate_move_risk(move, user_pokemon):
+    def evaluate_move_risk(move: Move, pokemon: Pokemon) -> float:
         """Evaluate the risk posed by an opponent's move based on potential damage."""
-        type_multiplier = calculate_type_multiplier(move.type, user_pokemon.types)
+        type_multiplier = calculate_type_multiplier(move.type, pokemon.types)
         damage_potential = move.basePower * type_multiplier
         accuracy_factor = move.accuracy / 100 if isinstance(move.accuracy, int) else 1  # Account for move accuracy
         risk_score = -(damage_potential * accuracy_factor)
@@ -331,8 +349,7 @@ class BattleBot(Battle):
         
         return best_pokemon
 
-
-    def pokemon_score_moves(self, pokemon_name):
+    def pokemon_score_moves(self, pokemon_name: str) -> float:
         """Find if the moves of the Pokémon are good or not"""
         pokemon = self.get_pokemon_by_name(pokemon_name)  # Get Pokémon object from the name
         max_score = float('-inf')
@@ -409,6 +426,31 @@ class BattleBot(Battle):
         return not (user_pokemon_alive or reserve_pokemon_alive) or not (
                 opponent_pokemon_alive or reserve_opponent_alive)
 
+    def evaluate_switch(self, switch: str) -> float:
+        """Evaluate a switch based on type matchups and overall strategy."""
+        switch_name = switch.split(" ", 1)[1]
+        pokemon = self.get_pokemon_by_name(switch_name)
+
+        if not pokemon:
+            return 0  # Return a neutral score if the Pokémon is not found
+
+        # Evaluate type resistance against the opponent's active Pokémon
+        type_advantage_score = sum(
+            constants.TYPE_EFFECTIVENESS.get(pokemon_type, {}).get(opponent_type, 1)
+            for opponent_type in self.opponent.active.types
+            for pokemon_type in pokemon.types
+        )
+
+        # Add additional evaluation criteria (e.g., HP, available setup moves)
+        hp_score = (pokemon.hp / pokemon.max_hp) * 10  # Bonus for higher HP
+        setup_move_bonus = 10 if any(
+            move.name in ['Stealth Rock', 'Spikes', 'Swords Dance'] for move in pokemon.moves) else 0
+
+        # Combine type advantage score, HP score, and setup move bonus
+        total_score = type_advantage_score + hp_score + setup_move_bonus
+
+        return total_score
+
 
 def is_type_disadvantageous(user: Pokemon, opponent: Pokemon) -> bool:
     """Checks if Pokémon type is disvantageus or not"""
@@ -462,11 +504,17 @@ def calculate_damage(attacker: Pokemon, defender: Pokemon, move: Move) -> int:
     level = attacker.level
     attack_stat = get_attack_stat(attacker, move)
     defense_stat = get_defense_stat(defender, move)
+    # Ensure defense_stat is not zero to avoid division errors
+    defense_stat = max(defense_stat, 1)
+
     damage = (((2 * level / 5 + 2) * move.basePower * (attack_stat / defense_stat)) / 50 + 2)
 
     # STAB (Same-Type Attack Bonus)
+    stab = 1.5 if move.type in attacker.types else 1.0
     if move.type in attacker.types:
-        damage *= stab_modifier(attacker, move)
+        if attacker.terastallized and move.type in pokedex[attacker.id].types:
+            stab = 2  # Terastal provides a 2x STAB
+    damage *= stab
 
     # Add type effectiveness
     type_multiplier = calculate_type_multiplier(move.type, defender.types)
@@ -478,7 +526,7 @@ def calculate_damage(attacker: Pokemon, defender: Pokemon, move: Move) -> int:
     # Apply random variance (from 0.85 to 1.0)
     damage *= random.uniform(0.85, 1.0)
 
-    return int(damage)
+    return max(1, int(damage))
 
 
 def stab_modifier(attacking_pokemon, attacking_move):
@@ -505,13 +553,17 @@ def apply_damage_conditions(defender: Pokemon, move: Move) -> float:
     modifier = 1.0
     side_conditions = getattr(defender, 'side_conditions', {})
 
+    # Critical hits ignore damage reduction
+    if getattr(move, 'critical_hint', False):
+        return 1.0  # Ignore all reductions
+
     # Check defensive conditions
     if side_conditions.get(constants.REFLECT) and move.category == constants.PHYSICAL:
         modifier *= 0.5
     if side_conditions.get(constants.LIGHT_SCREEN) and move.category == constants.SPECIAL:
         modifier *= 0.5
     if side_conditions.get(constants.AURORA_VEIL):
-        modifier *= 0.5
+        modifier *= 0.67
     if defender.ability == "multiscale" and defender.hp == defender.max_hp:
         modifier *= 0.5
     if defender.ability in ["filter", "solid_rock"] and calculate_type_multiplier(move.type, defender.types) > 1:
