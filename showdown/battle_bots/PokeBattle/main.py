@@ -11,7 +11,7 @@ from showdown.battle_bots.PokeBattle import utility
 from showdown.battle_bots.helpers import format_decision
 from showdown.engine import helpers
 
-MAX_DEPTH = 9 #maximum depth of exploration for minimax
+MAX_DEPTH = 10  # Maximum depth of exploration for minimax
 
 # JSON file containing all moves
 with open('data/moves.json', 'r') as f:
@@ -115,9 +115,9 @@ class BattleBot(Battle):
         move = Move(move_name)
 
         # Accuracy based move success rate calculation
-        random_accuracy = random.randint(1, 100)
-        if random_accuracy > move.accuracy:
-            print(f"{self.user.active.name} missed the move {move.name}.") if self.debug else None
+        if random.randint(1, 100) > move.accuracy:
+            if self.debug:
+                print(f"{self.user.active.name} missed the move {move.name}.")
             return
 
         # Damage calculation considering types
@@ -145,58 +145,53 @@ class BattleBot(Battle):
     def minimax(self, is_maximizing: bool, alpha: float, beta: float, max_depth: int = MAX_DEPTH) -> float:
         """Minimax algorithm with Alpha-Beta cutting-out."""
 
-        if not self.user.active.is_alive():
-            print("Error: No pokemon alive") if self.debug else None
-            # Switching Pokémon
-            switch = self.find_best_switch()
-            if switch:
-                self.apply_move(f"{constants.SWITCH_STRING} {switch}") if self.debug else None
-            return float('-inf')  # In case of no valid option the minimum evaluation is returned
+        if len(self.user.reserve) <= 2:
+            max_depth = 7  # Dynamic depth adjustment
 
-        if is_maximizing:
-            return self.max_eval(alpha, beta, max_depth)
-        else:
-            return self.min_eval(alpha, beta, max_depth)
+        if self.is_terminal(max_depth):
+            return self.evaluate_state()
+
+        return self.max_eval(alpha, beta, max_depth) if is_maximizing else self.min_eval(alpha, beta, max_depth)
 
     def max_eval(self, alpha: float, beta: float, max_depth: int) -> float:
-        ineffective_moves = True  # Move ineffectiveness flag
-
         max_eval = float('-inf')
         user_options, _ = self.get_all_options()
 
-        for move in user_options:
-            saved_state = deepcopy(self)  # Savestate before moving
+        # Separate moves from switches
+        moves = [move for move in user_options if not move.startswith(constants.SWITCH_STRING)]
+        switches = [move for move in user_options if move.startswith(constants.SWITCH_STRING)]
+
+        # Sort moves by importance
+        moves.sort(key=lambda move: self.evaluate_move(move), reverse=True)
+
+        # Evaluate moves
+        for move in moves:
+            saved_state = deepcopy(self)  # Save the battle state before simulating the move
 
             if self.is_terminal(max_depth):
-                return self.evaluate_state()
+                return max_eval
+
             self.apply_move(move)
-
-            # Move effectiveness check
-            move_type = all_moves.get(move.lower(), {}).get('type', None)
-            if move_type:
-                type_multiplier = calculate_type_multiplier(move_type, self.opponent.active.types)
-                print(type_multiplier) if self.debug else None
-                if type_multiplier > 1:
-                    ineffective_moves = False  # Effective move found
-
-            eval = self.minimax(False, alpha, beta, max_depth - 1)  # Opponent turn
-            self.restore_state(saved_state)
+            eval = self.minimax(False, alpha, beta, max_depth - 1)
+            self.restore_state(saved_state)  # Restore the battle state
 
             if eval > max_eval:
                 max_eval = eval
                 alpha = max(alpha, eval)
 
-            if max_eval >= beta:  # Compare v with beta for pruning
-                break  # Alpha-Beta pruning
+            if max_eval >= beta:
+                return max_eval  # Alpha-Beta pruning
 
-        if ineffective_moves and max_depth == MAX_DEPTH:
-            print("Every move is ineffective, looking for a switch") if self.debug else None
-            switch = self.find_best_switch()
-            if switch is None:
-                return max_eval
-            if switch:
-                print(f"Switching with {switch}.") if self.debug else None
-                self.apply_move(f"switch {switch}")
+        # Evaluate switches without saving/restoring state, as it isn't necessary
+        for switch in switches:
+            eval = self.evaluate_switch(switch)  # Evaluate based on the current state
+
+            if eval > max_eval:
+                max_eval = eval
+                alpha = max(alpha, eval)
+
+            if max_eval >= beta:
+                return max_eval  # Alpha-Beta pruning
 
         return max_eval
 
@@ -207,7 +202,7 @@ class BattleBot(Battle):
         for move in opponent_options:
             saved_state = deepcopy(self)  # Save battle state before moving
             if self.is_terminal(max_depth):
-                return self.evaluate_state()
+                return min_eval
 
             self.apply_move(move)
             eval = self.minimax(True, alpha, beta, max_depth - 1)  # Bot turn, maximizing
@@ -218,7 +213,7 @@ class BattleBot(Battle):
                 beta = min(beta, eval)
 
             if min_eval <= alpha:
-                break
+                return min_eval
 
         return min_eval
 
@@ -264,6 +259,11 @@ class BattleBot(Battle):
             score += 20
         elif self.weather == 'raindance' and 'Water' in self.user.active.types:
             score += 20
+        # Consider weather-based penalties for the opponent
+        if self.weather == 'sunnyday' and 'Water' in self.opponent.active.types:
+            score -= 15  # Penalty for the opponent
+        elif self.weather == 'raindance' and 'Fire' in self.opponent.active.types:
+            score -= 15  # Penalty for the opponent
 
         # 5. Penalty for status conditions
         status_penalty = {
@@ -275,6 +275,11 @@ class BattleBot(Battle):
             constants.FROZEN: 40
         }
         score -= status_penalty.get(self.user.active.status, 0)
+
+        # 6. Bonus for moves that have set up effects (e.g., Swords Dance, Calm Mind)
+        for move in self.user.active.moves:
+            if move.name in ['Swords Dance', 'Calm Mind', 'Nasty Plot']:
+                score += 30  # Arbitrary bonus for setup moves
 
         # Integrate worst-case opponent move analysis
         opponent_moves = self.opponent.active.moves
@@ -311,7 +316,7 @@ class BattleBot(Battle):
             resistance = 0
             for opponent_type in self.opponent.active.types:
                 for switch_type in pokemon_to_switch.types:
-                    resistance += constants.TYPE_EFFECTIVENESS[opponent_type].get(switch_type, 1)
+                    resistance += constants.TYPE_EFFECTIVENESS[switch_type].get(opponent_type, 1)
 
             # Calculate the move score
             move_score = self.pokemon_score_moves(pokemon_to_switch.name)
@@ -401,6 +406,31 @@ class BattleBot(Battle):
         # if no Pokémon is alive battle is over
         return not (user_pokemon_alive or reserve_pokemon_alive) or not (
                 opponent_pokemon_alive or reserve_opponent_alive)
+
+    def evaluate_switch(self, switch: str) -> float:
+        """Evaluate a switch based on type matchups and overall strategy."""
+        switch_name = switch.split(" ", 1)[1]
+        pokemon = self.get_pokemon_by_name(switch_name)
+
+        if not pokemon:
+            return 0  # Return a neutral score if the Pokémon is not found
+
+        # Evaluate type resistance against the opponent's active Pokémon
+        type_advantage_score = sum(
+            constants.TYPE_EFFECTIVENESS.get(pokemon_type, {}).get(opponent_type, 1)
+            for opponent_type in self.opponent.active.types
+            for pokemon_type in pokemon.types
+        )
+
+        # Add additional evaluation criteria (e.g., HP, available setup moves)
+        hp_score = (pokemon.hp / pokemon.max_hp) * 10  # Bonus for higher HP
+        setup_move_bonus = 10 if any(
+            move.name in ['Stealth Rock', 'Spikes', 'Swords Dance'] for move in pokemon.moves) else 0
+
+        # Combine type advantage score, HP score, and setup move bonus
+        total_score = type_advantage_score + hp_score + setup_move_bonus
+
+        return total_score
 
 
 def is_type_disadvantageous(user: Pokemon, opponent: Pokemon) -> bool:
