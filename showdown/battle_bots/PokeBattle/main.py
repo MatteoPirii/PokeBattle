@@ -7,7 +7,7 @@ import time
 from copy import deepcopy
 from data import pokedex
 from showdown.battle import Battle, Pokemon, Move
-from showdown.battle_bots.PokeBattle import utility
+from showdown.battle_bots.PokeBattle import utility, state_eval
 from showdown.battle_bots.helpers import format_decision
 from showdown.engine import helpers
 
@@ -222,12 +222,12 @@ class BattleBot(Battle):
 
     def is_terminal(self, max_depth: int) -> bool:
         "Checks weather or not the game is in a terminal state"
-        if utility.is_time_over(self):
+        if utility.is_time_over(self.start_time, self.time_remaining):
             print("Time expired, returning best found move") if self.debug else None
             return True
 
         # End conditions: max-depth reached or match ended
-        if max_depth == 0 or self.game_over():
+        if max_depth == 0 or utility.game_over(self.user, self.opponent):
             return True
 
         return False
@@ -253,20 +253,14 @@ class BattleBot(Battle):
 
         # 3. Bonus/penalty for type advantage/disadvantage
         if is_type_disadvantageous(self.user.active, self.opponent.active):
-            score -= -40
+            score -= 40
         else:
             score += 50
 
         # 4 Bonus for weather conditions
-        if self.weather == 'sunnyday' and 'Fire' in self.user.active.types:
-            score += 20
-        elif self.weather == 'raindance' and 'Water' in self.user.active.types:
-            score += 20
+        score += state_eval.weather_condition(self.user.active, self.weather)
         # Consider weather-based penalties for the opponent
-        if self.weather == 'sunnyday' and 'Water' in self.opponent.active.types:
-            score -= 15  # Penalty for the opponent
-        elif self.weather == 'raindance' and 'Fire' in self.opponent.active.types:
-            score -= 15  # Penalty for the opponent
+        score -= state_eval.weather_condition(self.opponent.active, self.weather)
 
         # 5. Penalty for status conditions
         status_penalty = {
@@ -316,7 +310,7 @@ class BattleBot(Battle):
 
             if pokemon_to_switch is None:
                 if self.debug:
-                    print(f"Error: Pokémon {switch} not found in the user's reserve.") 
+                    print(f"Error: Pokémon {switch} not found in the user's reserve.")
                     continue
 
             # Evaluate the resistance of the reserve Pokémon against the opponent's type
@@ -336,17 +330,17 @@ class BattleBot(Battle):
                 best_pokemon_candidates = [pokemon_to_switch] # Reset the list of best candidates
             elif total_move_score == max_score:
                 best_pokemon_candidates.append(pokemon_to_switch) # Add to the list of best candidates
- 
+
         # Choose the best Pokémon from the candidates
         if best_pokemon_candidates:
             #if we have more than one candidate choose an heuristic to select the best pokemon
             #for the moment we choose randomly
             best_pokemon = random.choice(best_pokemon_candidates) if len(best_pokemon_candidates) > 1 else best_pokemon_candidates[0]
-            if self.debug: 
-                print(f"Best switch: {best_pokemon.name} with a total score of {max_score}")  
+            if self.debug:
+                print(f"Best switch: {best_pokemon.name} with a total score of {max_score}")
         elif self.debug:
-            print("No suitable Pokémon found.") 
-        
+            print("No suitable Pokémon found.")
+
         return best_pokemon
 
     def pokemon_score_moves(self, pokemon_name: str) -> float:
@@ -412,19 +406,6 @@ class BattleBot(Battle):
         pkmn = self.get_pokemon_by_name(name)
         assert pkmn is not None
         return pkmn
-
-    def game_over(self) -> bool:
-        """Checks if battle is over"""
-        user_pokemon_alive = self.user.active.is_alive() if self.user.active is not None else False
-        opponent_pokemon_alive = self.opponent.active.is_alive() if self.opponent.active is not None else False
-
-        # Cheks if there are available Pokémon to switch
-        reserve_pokemon_alive = not self.user.get_switches() == []
-        reserve_opponent_alive = not self.opponent.get_switches() == []
-
-        # if no Pokémon is alive battle is over
-        return not (user_pokemon_alive or reserve_pokemon_alive) or not (
-                opponent_pokemon_alive or reserve_opponent_alive)
 
     def evaluate_switch(self, switch: str) -> float:
         """Evaluate a switch based on type matchups and overall strategy."""
@@ -511,9 +492,6 @@ def calculate_damage(attacker: Pokemon, defender: Pokemon, move: Move) -> int:
 
     # STAB (Same-Type Attack Bonus)
     stab = 1.5 if move.type in attacker.types else 1.0
-    if move.type in attacker.types:
-        if attacker.terastallized and move.type in pokedex[attacker.id].types:
-            stab = 2  # Terastal provides a 2x STAB
     damage *= stab
 
     # Add type effectiveness
@@ -530,20 +508,9 @@ def calculate_damage(attacker: Pokemon, defender: Pokemon, move: Move) -> int:
 
 
 def stab_modifier(attacking_pokemon, attacking_move):
-    """Calculates the STAB (Same-Type Attack Bonus) multiplier. The damage is increased by 50% if the move type
-    matches the type of the Pokémon."""
+    """Calculates the STAB (Same-Type Attack Bonus) multiplier. The damage is increased by 50% if the move type matches the type of the Pokémon."""
     if attacking_move.type in attacking_pokemon.types:
-        # Check if the Pokémon is Terastallized and its Terastal type matches the move type
-        if (
-                attacking_pokemon.terastallized and
-                attacking_pokemon.types[0] in pokedex[attacking_pokemon.id].types
-        ):
-            return 2  # Enhanced STAB bonus for Terastalization
-        else:
             return 1.5  # Standard STAB bonus
-
-    elif attacking_pokemon.terastallized and attacking_move.type in pokedex[attacking_pokemon.id].types:
-        return 1.5  # STAB bonus when the Terastal type matches the move type
 
     return 1  # No STAB bonus
 
