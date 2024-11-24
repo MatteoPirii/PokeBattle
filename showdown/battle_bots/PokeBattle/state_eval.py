@@ -4,7 +4,7 @@ from showdown.battle import Pokemon
 CONDITIONS = {
     'sunnyday': {
         'Fire': 20,
-        'Whater': -20
+        'Water': -20
     },
     'raindance': {
         'Water': 20
@@ -24,6 +24,5 @@ def weather_condition(pokemon: Pokemon, weather: str | None) -> float:
 
     for move in pokemon.moves:
         score += condition.get(move.type, 0)
-        
-    return score
 
+    return score
