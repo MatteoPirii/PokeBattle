@@ -117,20 +117,20 @@ class BattleBot(Battle):
         moves.sort(key=lambda move: self.evaluate_move(move), reverse=True)
 
         # Evaluate moves
-        for move in moves:
+        for option in moves + switches:
             saved_state = deepcopy(self)  # Save the battle state before simulating the move
 
             if self.is_terminal(max_depth):
                 return max_eval, best_action
 
-            self.apply_move(move)
+            self.apply_move(option)
             eval, _ = self.min_eval(alpha, beta, max_depth - 1)
             assert not eval == float('inf')
             self.restore_state(saved_state)  # Restore the battle state
 
             if eval > max_eval:
                 max_eval = eval
-                best_action = move
+                best_action = option
                 alpha = max(alpha, eval)
 
             if max_eval >= beta:
@@ -344,8 +344,22 @@ class BattleBot(Battle):
         # Consider the opponent's Pokémon level
         damage *= (self.user.active.level / self.opponent.active.level)
 
-        print(f"Move {move.name} inflicts {damage:.0f} damage to {self.opponent.active.name}.") if self.debug else None
+        print(f"Move {move.name} inflicts {damage:.2f} damage to {self.opponent.active.name}.") if self.debug else None
         return damage
+    
+    """def normalize_score(self, score: float, a = -1000, b = 1000) -> float:
+        #Normalize score betweeen -1000 and 1000
+        
+        #calculate minimum and maximum score
+        min_score = self.calc_score(level = 1, basePower = 20, attack_stat = 5, defense_stat = 700)
+        max_score = self.calc_score(level = 100, basePower = 250, attack_stat = 700, defense_stat = 5)
+        
+        return a + ((score - min_score) * (b - a)) / (max_score - min_score)
+    
+    def calc_score (self, level, basePower, attack_stat, defense_stat) -> float:
+        score = (((2 * level / 5 + 2) * basePower * (attack_stat / defense_stat)) / 50 + 2)
+        return score"""
+
 
     def get_pokemon_by_name(self, name: str) -> Pokemon | None:
         """Returns the Pokémon with the name took from user reserve."""
@@ -364,7 +378,6 @@ class BattleBot(Battle):
         """Returns Pokémon from a switching string"""
         name = switch.split(' ')[1]
         pkmn = self.get_pokemon_by_name(name)
-        assert pkmn is not None
         return pkmn
 
     def evaluate_switch(self, switch: str) -> float:
@@ -428,7 +441,8 @@ def is_type_disadvantageous(user: Pokemon, opponent: Pokemon) -> bool:
 
 
 def calculate_type_multiplier(move_type: str, defender_types: list[str]) -> float:
-    """Calculates damage multiplier considering defender's type(s)"""
+    """Calculates damage multiplier considering defender's type(s)
+    [0-4]"""
     multiplier = 1.0
 
     for defender_type in defender_types:
