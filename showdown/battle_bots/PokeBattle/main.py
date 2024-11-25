@@ -258,10 +258,9 @@ class BattleBot(Battle):
             score += 50
 
         # 4 Bonus for weather conditions
-        score += state_eval.weather_condition(self.user.active, self.weather)
-        # Consider weather-based penalties for the opponent
-        score -= state_eval.weather_condition(self.opponent.active, self.weather)
-
+        # Consider weather-based bonuses and penalties
+        score += state_eval.weather_condition(self.user.active, self.opponent.active, self.weather)
+        
         # 5. Penalty for status conditions
         status_penalty = {
             constants.PARALYZED: 20,
