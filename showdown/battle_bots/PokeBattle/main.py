@@ -26,9 +26,11 @@ class BattleBot(Battle):
         self.debug = False
         self.start_time: float = 0
 
+
     def find_best_move(self) -> list[str]:
         """Finds best move or best switch using Minimax"""
         best_move = None
+        max_score = float("-inf")
         self.start_time = time.time()  # timer start
 
         # Check if the Pokémon is alive or inactive
@@ -40,7 +42,7 @@ class BattleBot(Battle):
                 return switch
             # if forced to switch and no switch available backup plan
             return format_decision(self, constants.DO_NOTHING_MOVE)
-
+            
         # Execute MinMax for each option
         score, best_move = self.minimax()
 
@@ -104,9 +106,9 @@ class BattleBot(Battle):
         if len(self.user.reserve) <= 2:
             max_depth = 7  # Dynamic depth adjustment
 
-        return self.max_eval(alpha, beta, max_depth)
+        return self.max_eval(alpha, beta, max_depth, consider_switch = True)
 
-    def max_eval(self, alpha: float, beta: float, max_depth: int) -> tuple[float, str]:
+    def max_eval(self, alpha: float, beta: float, max_depth: int, consider_switch: bool = False) -> tuple[float, str]:
         max_eval = float('-inf')
         best_action = constants.DO_NOTHING_MOVE
         user_options, _ = self.get_all_options()
@@ -116,8 +118,10 @@ class BattleBot(Battle):
         # Sort moves by importance
         moves.sort(key=lambda move: self.evaluate_move(move), reverse=True)
 
+        options = moves if not consider_switch else moves + switches
+
         # Evaluate moves
-        for option in moves + switches:
+        for option in options:
             saved_state = deepcopy(self)  # Save the battle state before simulating the move
 
             if self.is_terminal(max_depth):
@@ -125,7 +129,6 @@ class BattleBot(Battle):
 
             self.apply_move(option)
             eval, _ = self.min_eval(alpha, beta, max_depth - 1)
-            assert not eval == float('inf')
             self.restore_state(saved_state)  # Restore the battle state
 
             if eval > max_eval:
@@ -179,11 +182,8 @@ class BattleBot(Battle):
 
 
             if min_eval <= alpha:
-                assert not min_eval == float('inf'), f"Infinite score inside loop, checked: {opponent_options}"
-
                 return min_eval, best_action
 
-        assert not min_eval == float('inf'), f"Infinite score outside of loop, checked: {opponent_options}"
         return min_eval, best_action
 
     def is_terminal(self, max_depth: int) -> bool:
@@ -264,9 +264,8 @@ class BattleBot(Battle):
         return risk_score  # Negative for riskier moves
 
     def find_best_switch(self) -> Pokemon | None:
-        """
-        Finds the best Pokémon in the team to make the switch
-        """
+        """Finds the best Pokémon in the team to make the switch"""
+
         best_pokemon = None
         max_score = float('-inf')
         best_pokemon_candidates = [None]
@@ -359,7 +358,6 @@ class BattleBot(Battle):
     def calc_score (self, level, basePower, attack_stat, defense_stat) -> float:
         score = (((2 * level / 5 + 2) * basePower * (attack_stat / defense_stat)) / 50 + 2)
         return score"""
-
 
     def get_pokemon_by_name(self, name: str) -> Pokemon | None:
         """Returns the Pokémon with the name took from user reserve."""
