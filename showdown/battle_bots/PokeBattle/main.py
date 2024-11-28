@@ -461,16 +461,13 @@ def calculate_type_multiplier(move_type: str, defender_types: list[str]) -> floa
     """Calculates damage multiplier considering defender's type(s)"""
     multiplier = 1.0
 
+    effectiveness_values = constants.TYPE_EFFECTIVENESS.get(move_type, {})
+
     for defender_type in defender_types:
         try:
-            current_effectiveness = constants.TYPE_EFFECTIVENESS[move_type][defender_type]
+            current_effectiveness = effectiveness_values.get(defender_type, 1)
             multiplier *= current_effectiveness
-
-            # Apply special abilities that modify type effectiveness
-            if current_effectiveness > 1 and defender_type in ["filter", "solid_rock"]:
-                multiplier *= 0.75  # Reduces super-effective damage
-            if defender_type == "wonder_guard" and current_effectiveness <= 1:
-                multiplier = 0  # Immune to non-super-effective hits
+            
         except KeyError:
             print(f"Warning: Effectiveness for {move_type} against {defender_type} not found.")
 
