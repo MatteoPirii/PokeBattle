@@ -466,9 +466,7 @@ def calculate_type_multiplier(move_type: str, defender_types: list[str]) -> floa
 
     for defender_type in defender_types:
         try:
-            current_effectiveness = effectiveness_values.get(defender_type, None)
-            if current_effectiveness is None:
-                continue
+            current_effectiveness = effectiveness_values.get(defender_type, 1)
             multiplier *= current_effectiveness
             
         except KeyError:
