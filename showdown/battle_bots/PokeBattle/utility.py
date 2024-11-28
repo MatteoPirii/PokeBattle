@@ -2,14 +2,21 @@ import time
 
 from showdown.battle import Battler
 
-TIME_TOLLERANCE = 10 # 10seconds of tollerance
+TIME_TOLLERANCE = 10  # 10 seconds of tolerance
+
 
 def is_time_over(start: float, time_remaining: float | None) -> bool:
-    "Checks if timer of a battle is over"
+    """Checks if timer of a battle is over"""
     if time_remaining is None:
         return False
 
-    return time.time() - start > time_remaining - TIME_TOLLERANCE
+    effective_timer = time_remaining - TIME_TOLLERANCE
+    elapsed_time = time.time() - start
+
+    print(f"Tempo trascorso: {elapsed_time:.2f}s, Timer effettivo con tolleranza: {effective_timer:.2f}s")
+
+    return elapsed_time > effective_timer
+
 
 def game_over(challenger: Battler, opponent: Battler) -> bool:
     """Checks if battle is over given two opponents"""

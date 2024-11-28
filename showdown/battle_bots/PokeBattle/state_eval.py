@@ -11,10 +11,11 @@ CONDITIONS = {
     }
 }
 
-## State evaluation funcitons
+
+# State evaluation funcitons
 def weather_condition(pokemon: Pokemon, weather: str | None) -> float:
     """
-    Evaluates the weather conditions effect on a pokemon and returns an advantage score
+    Evaluates the weather conditions effect on a Pokémon and returns an advantage score
     """
     if weather is None:
         return 0
@@ -24,6 +25,5 @@ def weather_condition(pokemon: Pokemon, weather: str | None) -> float:
 
     for move in pokemon.moves:
         score += condition.get(move.type, 0)
-        
-    return score
 
+    return score
