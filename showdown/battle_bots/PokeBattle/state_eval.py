@@ -39,4 +39,3 @@ def weather_condition(user_pokemon: Pokemon, opponent_pokemon: Pokemon, weather:
         score -= condition.get(opponent_type, 0)
 
     return score
-
