@@ -1,3 +1,4 @@
+import logging
 import constants
 import json
 import math
@@ -11,8 +12,11 @@ from showdown.battle_bots.PokeBattle.utility import game_over
 from showdown.battle_bots.helpers import format_decision
 from showdown.engine import helpers
 
-MAX_DEPTH = 12
 # Maximum depth of exploration for minimax
+MAX_DEPTH = 12
+
+# 10 seconds of tolerance
+TIME_TOLLERANCE = 10
 
 # JSON file containing all moves
 with open('data/moves.json', 'r') as f:
@@ -23,13 +27,17 @@ class BattleBot(Battle):
 
     def __init__(self, *args, **kwargs):
         super(BattleBot, self).__init__(*args, **kwargs)
+        self.time_remaining = 150 #2min + 30s
         self.debug = False
         self.start_time: float = 0
+
+        self.logger = logging.getLogger(__name__)
 
     def find_best_move(self) -> list[str]:
         """Finds best move or best switch using Minimax"""
         best_move = None
         max_value = float('-inf')
+        self.start_time = time.time()  # timer start
 
         # Check if the Pokémon is alive or inactive
         if not self.user.active.is_alive():
@@ -39,6 +47,7 @@ class BattleBot(Battle):
                 selected_switch = self.find_best_switch()
                 if selected_switch:
                     self.apply_move(f"{constants.SWITCH_STRING} {selected_switch.name}")
+                    self.time_remaining = utility.adjust_time(int(time.time() - self.start_time), self.time_remaining)
                     return format_decision(self, f"{constants.SWITCH_STRING} {selected_switch.name}")
             else:
                 return ["no valid move or switch"]
@@ -48,12 +57,12 @@ class BattleBot(Battle):
         print(f"Available moves: {user_options}") if self.debug else None
         moves, switches = BattleBot.options_categorization(user_options)
 
-        self.start_time = time.time()  # timer start
 
         # If we're forced to switch or there are no available moves the first switch is returned
         if self.force_switch or not moves:
             if not switches:
                 print("Error: no available switch.") if self.debug else None
+                self.time_remaining = utility.adjust_time(int(time.time() - self.start_time), self.time_remaining)
                 return ["no valid move or switch"]
 
             switch = self.find_best_switch()
@@ -62,6 +71,7 @@ class BattleBot(Battle):
 
             selected_switch = format_decision(self, f"{constants.SWITCH_STRING} {switch.name}")
             print(f"Selected switch: {selected_switch}") if self.debug else None
+            self.time_remaining = utility.adjust_time(int(time.time() - self.start_time), self.time_remaining)
             return selected_switch
 
         # Prioritize type advantage moves
@@ -80,7 +90,7 @@ class BattleBot(Battle):
         for move in combined_options:
             saved_state = deepcopy(self)  # Saving the battle state
             self.apply_move(move)  # Choice simulation
-            move_value = self.minimax(is_maximizing=True, alpha=float('-inf'), beta=float('inf'))
+            move_value = self.minimax(alpha=float('-inf'), beta=float('inf'))
 
             self.restore_state(saved_state)  # Battle state recovery
 
@@ -93,6 +103,7 @@ class BattleBot(Battle):
         if (best_move is not None or max_value > 0) and not game_over(self.user, self.opponent):
             selected_move = format_decision(self, best_move)
             print(f"Best found move: {selected_move}") if self.debug else None
+            self.time_remaining = utility.adjust_time(int(time.time() - self.start_time), self.time_remaining)
             return selected_move  # returns formatted decision
 
         # If no move is deemed "best," pick a random one
@@ -100,6 +111,7 @@ class BattleBot(Battle):
             print("No best move found. Falling back to a random choice.")
             best_move = random.choice(user_options)  # Random fallback choice
             selected_move = format_decision(self, best_move)
+            self.time_remaining = utility.adjust_time(int(time.time() - self.start_time), self.time_remaining)
             return selected_move
 
     @staticmethod
@@ -154,7 +166,7 @@ class BattleBot(Battle):
         """Restores battle state after single move simulation"""
         self.__dict__.update(saved_state.__dict__)
 
-    def minimax(self, is_maximizing: bool, alpha: float, beta: float, max_depth: int = MAX_DEPTH) -> float:
+    def minimax(self, alpha: float, beta: float, max_depth: int = MAX_DEPTH) -> float:
         """Minimax algorithm with Alpha-Beta cutting-out."""
 
         if len(self.user.reserve) <= 2:
@@ -163,7 +175,7 @@ class BattleBot(Battle):
         if self.is_terminal(max_depth):
             return self.evaluate_state()
 
-        return self.max_eval(alpha, beta, max_depth) if is_maximizing else self.min_eval(alpha, beta, max_depth)
+        return self.max_eval(alpha, beta, max_depth)
 
     def max_eval(self, alpha: float, beta: float, max_depth: int) -> float:
         max_eval = float('-inf')
@@ -186,7 +198,7 @@ class BattleBot(Battle):
                 return max_eval
 
             self.apply_move(move)
-            eval = self.minimax(False, alpha, beta, max_depth - 1)
+            eval = self.min_eval(alpha, beta, max_depth - 1)
             self.restore_state(saved_state)  # Restore the battle state
 
             if eval > max_eval:
@@ -208,7 +220,7 @@ class BattleBot(Battle):
                 return min_eval
 
             self.apply_move(move)
-            eval = self.minimax(True, alpha, beta, max_depth - 1)  # Bot turn, maximizing
+            eval = self.max_eval(alpha, beta, max_depth - 1)  # Bot turn, maximizing
             self.restore_state(saved_state)
 
             if eval < min_eval:
@@ -222,7 +234,7 @@ class BattleBot(Battle):
 
     def is_terminal(self, max_depth: int) -> bool:
         """Checks weather or not the game is in a terminal state"""
-        if utility.is_time_over(self.start_time, self.time_remaining):
+        if self.is_time_over():
             print("Time expired, returning best found move") if self.debug else None
             return True
 
@@ -231,6 +243,15 @@ class BattleBot(Battle):
             return True
 
         return False
+
+    def is_time_over(self) -> bool:
+        """Checks if timer of a battle is over"""
+        effective_timer = self.time_remaining - TIME_TOLLERANCE
+        elapsed_time = time.time() - self.start_time
+
+        self.logger.debug(f"Elapsed time: {elapsed_time:.0f}s, Timer at: {effective_timer:.0f}s")
+
+        return elapsed_time > effective_timer
 
     def evaluate_state(self) -> float:
         """Battle state evaluation"""
@@ -266,7 +287,7 @@ class BattleBot(Battle):
         # 4 Bonus for weather conditions
         # Consider weather-based bonuses and penalties
         score += state_eval.weather_condition(self.user.active, self.opponent.active, self.weather)
-        
+
         # 5. Penalty for status conditions
         status_penalty = {
             constants.PARALYZED: 20,
@@ -455,7 +476,7 @@ def calculate_type_multiplier(move_type: str, defender_types: list[str]) -> floa
         try:
             current_effectiveness = effectiveness_values.get(defender_type, 1)
             multiplier *= current_effectiveness
-            
+
         except KeyError:
             print(f"Warning: Effectiveness for {move_type} against {defender_type} not found.")
 
