@@ -74,13 +74,6 @@ class BattleBot(Battle):
             self.time_remaining = utility.adjust_time(int(time.time() - self.start_time), self.time_remaining)
             return selected_switch
 
-        # Prioritize type advantage moves
-        ###### da eliminare ########
-        opponent_types = self.opponent.active.types
-        prioritized_moves = [move for move in moves if is_type_advantage_move(move, opponent_types)]
-        if prioritized_moves:
-            moves = prioritized_moves
-
         combined_options = moves.copy()
         combined_options.sort(key=lambda move: self.evaluate_move(move), reverse=True)
         switch = self.find_best_switch()
@@ -170,19 +163,22 @@ class BattleBot(Battle):
     def minimax(self, alpha: float, beta: float, max_depth: int = MAX_DEPTH) -> float:
         """Minimax algorithm with Alpha-Beta cutting-out."""
 
-        ### cambia qui ###
-        if len(self.user.reserve) <= 2:
-            max_depth = 6  # Dynamic depth adjustment
-
         if self.is_terminal(max_depth):
-            return self.evaluate_state()
+            score = self.evaluate_state()
+            print(f"Terminal state reached. Evaluation score: {score}") if self.debug else None
+            return score
 
         return self.max_eval(alpha, beta, max_depth)
 
     def max_eval(self, alpha: float, beta: float, max_depth: int) -> float:
         max_eval = float('-inf')
         user_options, _ = self.get_all_options()
-        #### cambia qui ####
+
+        if self.is_terminal(max_depth):
+            score = self.evaluate_state()
+            print(f"Terminal state reached. Evaluation score: {score}") if self.debug else None
+            return score
+        
         # Separate moves from switches
         moves = [move for move in user_options if not move.startswith(constants.SWITCH_STRING)]
 
@@ -215,7 +211,12 @@ class BattleBot(Battle):
     def min_eval(self, alpha: float, beta: float, max_depth: int) -> float | int:
         min_eval = float('inf')
         _, opponent_options = self.get_all_options()
-        #### cambia qui ###
+
+        if self.is_terminal(max_depth):
+            score = self.evaluate_state()
+            print(f"Terminal state reached. Evaluation score: {score}") if self.debug else None
+            return score
+        
         for move in opponent_options:
             saved_state = deepcopy(self)  # Save battle state before moving
             if self.is_terminal(max_depth):
@@ -246,13 +247,15 @@ class BattleBot(Battle):
 
         return False
     
-    ### cambia qui ###
     def is_time_over(self) -> bool:
         """Checks if timer of a battle is over"""
+        if self.time_remaining is None:
+            self.time_remaining = 150
+
         effective_timer = self.time_remaining - TIME_TOLLERANCE
         elapsed_time = time.time() - self.start_time
 
-        self.logger.debug(f"Elapsed time: {elapsed_time:.0f}s, Timer at: {effective_timer:.0f}s")
+        print(f"Elapsed time: {elapsed_time:.0f}s, Timer at: {effective_timer:.0f}s") if self.debug else None
 
         return elapsed_time > effective_timer
 
