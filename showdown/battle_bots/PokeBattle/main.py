@@ -13,7 +13,7 @@ from showdown.battle_bots.helpers import format_decision
 from showdown.engine import helpers
 
 # Maximum depth of exploration for minimax
-MAX_DEPTH = 12
+MAX_DEPTH = 18
 
 # 10 seconds of tolerance
 TIME_TOLLERANCE = 10
@@ -27,7 +27,7 @@ class BattleBot(Battle):
 
     def __init__(self, *args, **kwargs):
         super(BattleBot, self).__init__(*args, **kwargs)
-        self.time_remaining = 150 #2min + 30s
+        self.time_remaining = 150 # 2min + 30s
         self.debug = False
         self.start_time: float = 0
 
@@ -75,6 +75,7 @@ class BattleBot(Battle):
             return selected_switch
 
         # Prioritize type advantage moves
+        ###### da eliminare ########
         opponent_types = self.opponent.active.types
         prioritized_moves = [move for move in moves if is_type_advantage_move(move, opponent_types)]
         if prioritized_moves:
@@ -169,6 +170,7 @@ class BattleBot(Battle):
     def minimax(self, alpha: float, beta: float, max_depth: int = MAX_DEPTH) -> float:
         """Minimax algorithm with Alpha-Beta cutting-out."""
 
+        ### cambia qui ###
         if len(self.user.reserve) <= 2:
             max_depth = 6  # Dynamic depth adjustment
 
@@ -180,7 +182,7 @@ class BattleBot(Battle):
     def max_eval(self, alpha: float, beta: float, max_depth: int) -> float:
         max_eval = float('-inf')
         user_options, _ = self.get_all_options()
-
+        #### cambia qui ####
         # Separate moves from switches
         moves = [move for move in user_options if not move.startswith(constants.SWITCH_STRING)]
 
@@ -213,7 +215,7 @@ class BattleBot(Battle):
     def min_eval(self, alpha: float, beta: float, max_depth: int) -> float | int:
         min_eval = float('inf')
         _, opponent_options = self.get_all_options()
-
+        #### cambia qui ###
         for move in opponent_options:
             saved_state = deepcopy(self)  # Save battle state before moving
             if self.is_terminal(max_depth):
@@ -243,7 +245,8 @@ class BattleBot(Battle):
             return True
 
         return False
-
+    
+    ### cambia qui ###
     def is_time_over(self) -> bool:
         """Checks if timer of a battle is over"""
         effective_timer = self.time_remaining - TIME_TOLLERANCE
@@ -259,16 +262,16 @@ class BattleBot(Battle):
 
         # Check if active Pokémon are alive
         if not self.user.active.is_alive():
-            print("User's active Pokémon is fainted.") if self.debug else None
             return float('-inf')  # Heavy penalty if user's active Pokémon is fainted
+        if not self.opponent.active.is_alive():
+            return float('inf')  # High reward if opponent's active Pokémon is fainted
 
         # 1. Scores by hp difference and level
-        hp_diff = (self.user.active.hp - self.opponent.active.hp) * 2  # HP difference (higher weight)
-        hp_percent_diff = (self.user.active.hp / self.user.active.max_hp) - (
-                self.opponent.active.hp / self.opponent.active.max_hp) * 50  # Percent HP difference
-        level_diff = (self.user.active.level - self.opponent.active.level) * 5  # Level difference has a smaller weight
-
-        score += hp_diff + hp_percent_diff + level_diff
+        hp_percent_user = self.user.active.hp / self.user.active.max_hp
+        hp_percent_opponent = self.opponent.active.hp / self.opponent.active.max_hp
+        level_diff = self.user.active.level - self.opponent.active.level
+        score += (hp_percent_user - hp_percent_opponent) * 50
+        score += level_diff * 5
 
         # 2. Bonus/penalty for alive reserve
         user_reserve_score = sum(10 for p in self.user.reserve if p.hp > 0)
@@ -278,11 +281,11 @@ class BattleBot(Battle):
         # 3. Bonus/penalty for type advantage/disadvantage
         type_advantage_multiplier = calculate_type_multiplier(self.user.active.types[0], self.opponent.active.types)
         if type_advantage_multiplier > 1:
-            score += 40 * type_advantage_multiplier  # Bonus for type advantage
+            score += 120 * type_advantage_multiplier  # Bonus for type advantage
         elif type_advantage_multiplier < 1 and type_advantage_multiplier != 0:
-            score -= 30 * (1 / type_advantage_multiplier)  # Penalty for type disadvantage
+            score -= 100 * (1 / type_advantage_multiplier)  # Penalty for type disadvantage
         else:
-            score -= 75
+            score -= 150
 
         # 4 Bonus for weather conditions
         # Consider weather-based bonuses and penalties
@@ -290,22 +293,32 @@ class BattleBot(Battle):
 
         # 5. Penalty for status conditions
         status_penalty = {
-            constants.PARALYZED: 20,
-            constants.POISON: 15,
-            'badly poisoned': 25,
-            constants.BURN: 20,
-            constants.SLEEP: 30,
-            constants.FROZEN: 40
+            constants.PARALYZED: 30,
+            constants.POISON: 35,
+            'badly poisoned': 40,
+            constants.BURN: 25,
+            constants.SLEEP: 60,
+            constants.FROZEN: 70
         }
         score -= status_penalty.get(self.user.active.status, 0)
         score += status_penalty.get(self.opponent.active.status, 0)
 
-        # 6. Bonus for moves that have set up effects (e.g., Swords Dance, Calm Mind)
-        for move in self.user.active.moves:
-            if move.name in ['Swords Dance', 'Calm Mind', 'Nasty Plot']:
-                score += 40  # Arbitrary bonus for setup moves
+        # 6. Evaluate user's boost status
+        for boost, value in self.user.active.boosts.items():
+            if value < 0:
+                score -= 20
+            elif 0 < value <= 4:
+                score += 30
+            elif value > 4:
+                score -= 10
 
-        # 7. Integrate worst-case opponent move analysis
+        # 7. Evaluate user's boost status
+        status_move = [move for move in self.user.active.moves if
+                       "heal" in all_moves.get(move.name.lower(), {}).get("flags", {})]
+        if status_move and hp_percent_user >= 0.85:
+            score -= 120
+
+        # 8. Integrate worst-case opponent move analysis
         opponent_moves = self.opponent.active.moves
         if opponent_moves:
             worst_opponent_score = min(
@@ -313,8 +326,8 @@ class BattleBot(Battle):
             )
             score += worst_opponent_score  # Adjust score with worst-case scenario
 
-            # 9. Random factor for tie-breaking decisions
-            score += random.uniform(-1, 1)
+        # 9. Random factor for tie-breaking decisions
+        score += random.uniform(-1, 1)
 
         return score
 
@@ -329,6 +342,7 @@ class BattleBot(Battle):
 
     def find_best_switch(self) -> Pokemon | None:
         # Find the best Pokémon in the team to make the switch.
+        ### cambia qui ###
         best_pokemon = None
         max_score = float('-inf')
         best_pokemon_candidates = []
