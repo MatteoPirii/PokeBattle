@@ -345,9 +345,9 @@ class BattleBot(Battle):
 
     def find_best_switch(self) -> Pokemon | None:
         # Find the best Pokémon in the team to make the switch.
-        ### cambia qui ###
         best_pokemon = None
         max_score = float('-inf')
+        best_move_score = float('-inf')
         best_pokemon_candidates = []
 
         opponent_types = self.opponent.active.types
@@ -366,11 +366,8 @@ class BattleBot(Battle):
                               for opponent_type in opponent_types
                               for switch_type in pokemon_to_switch.types)
 
-            # Calculate the move score
-            best_move_score = self.pokemon_score_moves(pokemon_to_switch.name)
-
-            # Combine resistance and move score for overall evaluation
-            total_move_score = resistance + best_move_score
+            # Total resistance 
+            total_move_score = resistance 
 
             if total_move_score > max_score:
                 max_score = total_move_score
@@ -381,13 +378,18 @@ class BattleBot(Battle):
         # Choose the best Pokémon from the candidates
         if best_pokemon_candidates:
             # if we have more than one candidate choose a heuristic to select the best Pokémon
-            # for the moment we choose randomly
-            best_pokemon = random.choice(best_pokemon_candidates) if len(best_pokemon_candidates) > 1 else \
-                best_pokemon_candidates[0]
-            if self.debug:
-                print(f"Best switch: {best_pokemon.name} with a total score of {max_score}")
+            # we choose the Pokemon with the best move
+            for pokemon in best_pokemon_candidates:
+                # Calculate the move score
+                move_score = self.pokemon_score_moves(pokemon_to_switch.name)
+
+                if move_score > best_move_score:
+                    best_move_score = move_score
+                    best_pokemon = pokemon
+            # if self.debug:
+            print(f"Best switch: {best_pokemon.name} with a total score of {max_score}") if self.debug else None
         elif self.debug:
-            print("No suitable Pokémon found.")
+            print("No suitable Pokémon found.") if self.debug else None
 
         return best_pokemon
 
