@@ -27,7 +27,7 @@ class BattleBot(Battle):
 
     def __init__(self, *args, **kwargs):
         super(BattleBot, self).__init__(*args, **kwargs)
-        self.time_remaining = 150 # 2min + 30s
+        self.time_remaining = 150  # 2min + 30s
         self.debug = False
         self.start_time: float = 0
 
@@ -56,7 +56,6 @@ class BattleBot(Battle):
         user_options, _ = self.get_all_options()
         print(f"Available moves: {user_options}") if self.debug else None
         moves, switches = BattleBot.options_categorization(user_options)
-
 
         # If we're forced to switch or there are no available moves the first switch is returned
         if self.force_switch or not moves:
@@ -96,13 +95,13 @@ class BattleBot(Battle):
         # Select highest damage move
         if (best_move is not None or max_value > 0) and not game_over(self.user, self.opponent):
             selected_move = format_decision(self, best_move)
-            print(f"Best found move: {selected_move}") if self.debug else None
+            print(f"Best found move: {selected_move}")
             self.time_remaining = utility.adjust_time(int(time.time() - self.start_time), self.time_remaining)
             return selected_move  # returns formatted decision
 
         # If no move is deemed "best," pick a random one
         if best_move is None and not game_over(self.user, self.opponent):  # If no best move was found by Minimax
-            print("No best move found. Falling back to a random choice.")
+            print(f"No best move found. Falling back to a random choice. {user_options}")
             best_move = random.choice(user_options)  # Random fallback choice
             selected_move = format_decision(self, best_move)
             self.time_remaining = utility.adjust_time(int(time.time() - self.start_time), self.time_remaining)
@@ -178,7 +177,7 @@ class BattleBot(Battle):
             score = self.evaluate_state()
             print(f"Terminal state reached. Evaluation score: {score}") if self.debug else None
             return score
-        
+
         # Separate moves from switches
         moves = [move for move in user_options if not move.startswith(constants.SWITCH_STRING)]
 
@@ -191,9 +190,6 @@ class BattleBot(Battle):
         # Evaluate moves
         for move in moves:
             saved_state = deepcopy(self)  # Save the battle state before simulating the move
-
-            if self.is_terminal(max_depth):
-                return max_eval
 
             self.apply_move(move)
             eval = self.min_eval(alpha, beta, max_depth - 1)
@@ -216,11 +212,9 @@ class BattleBot(Battle):
             score = self.evaluate_state()
             print(f"Terminal state reached. Evaluation score: {score}") if self.debug else None
             return score
-        
+
         for move in opponent_options:
             saved_state = deepcopy(self)  # Save battle state before moving
-            if self.is_terminal(max_depth):
-                return min_eval
 
             self.apply_move(move)
             eval = self.max_eval(alpha, beta, max_depth - 1)  # Bot turn, maximizing
@@ -246,7 +240,7 @@ class BattleBot(Battle):
             return True
 
         return False
-    
+
     def is_time_over(self) -> bool:
         """Checks if timer of a battle is over"""
         if self.time_remaining is None:
@@ -269,7 +263,7 @@ class BattleBot(Battle):
         if not self.opponent.active.is_alive():
             return float('inf')  # High reward if opponent's active Pokémon is fainted
 
-        # 1. Scores by hp difference and level
+        # 1. Scores by HP difference and level
         hp_percent_user = self.user.active.hp / self.user.active.max_hp
         hp_percent_opponent = self.opponent.active.hp / self.opponent.active.max_hp
         level_diff = self.user.active.level - self.opponent.active.level
@@ -290,8 +284,7 @@ class BattleBot(Battle):
         else:
             score -= 150
 
-        # 4 Bonus for weather conditions
-        # Consider weather-based bonuses and penalties
+        # 4. Bonus for weather conditions
         score += state_eval.weather_condition(self.user.active, self.opponent.active, self.weather)
 
         # 5. Penalty for status conditions
@@ -301,7 +294,7 @@ class BattleBot(Battle):
             'badly poisoned': 40,
             constants.BURN: 25,
             constants.SLEEP: 60,
-            constants.FROZEN: 70
+            constants.FROZEN: 70,
         }
         score -= status_penalty.get(self.user.active.status, 0)
         score += status_penalty.get(self.opponent.active.status, 0)
@@ -366,8 +359,8 @@ class BattleBot(Battle):
                               for opponent_type in opponent_types
                               for switch_type in pokemon_to_switch.types)
 
-            # Total resistance 
-            total_move_score = resistance 
+            # Combine resistance and move score for overall evaluation
+            total_move_score = resistance
 
             if total_move_score > max_score:
                 max_score = total_move_score
@@ -378,8 +371,9 @@ class BattleBot(Battle):
         # Choose the best Pokémon from the candidates
         if best_pokemon_candidates:
             # if we have more than one candidate choose a heuristic to select the best Pokémon
-            # we choose the Pokemon with the best move
+            # we choose the Pokémon with the best move
             for pokemon in best_pokemon_candidates:
+
                 # Calculate the move score
                 move_score = self.pokemon_score_moves(pokemon_to_switch.name)
 

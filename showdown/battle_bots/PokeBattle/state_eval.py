@@ -23,7 +23,8 @@ CONDITIONS = {
     }
 }
 
-## State evaluation funcitons
+
+# State evaluation funcitons
 def weather_condition(user_pokemon: Pokemon, opponent_pokemon: Pokemon, weather: str | None) -> float:
     """
     Evaluates the weather conditions effect on a pokemon and returns an advantage or disadvantage score

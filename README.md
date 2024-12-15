@@ -1,11 +1,37 @@
-# Showdown  ![umbreon](https://play.pokemonshowdown.com/sprites/xyani/umbreon.gif)
-A Pokémon battle-bot that can play battles on [Pokemon Showdown](https://pokemonshowdown.com/).
+# PokéBattle
+A Pokémon battle-bot that can play battles on [Pokemon Showdown](https://pokemonshowdown.com/) thanks to the API [Showdown](https://github.com/pmariglia/showdown).
 
-The bot can play single battles in generations 3 through 8.
+<p align = "center">
+  <img src = "Stemma_unipi.svg.png" width="256" height="256">
+</p>
 
+<p align = "center">
+  Computer Science Department
+  <br>
+  A project for
+  <br>
+  Artificial Intelligence Foundaments
+  <br>
+  courses of AI Master at University of Pisa.
+</p>
+
+# Project description and introduction
+
+In this section we introduce context information for the project.
+
+## Introduction
+
+Spring Boot Web App to support artisans. Produced for the Software Engineering and Software Project Management
+courses of Computer Science at University of Salerno.
+
+## Authors
+* **Matteo Piredda**      - *Developer*         - [MatteoPirii](https://github.com/MatteoPirii)
+* **Margherita Merialdo** - *Developer*         - [margheritamerialdo](https://github.com/margheritamerialdo)
+* **Michela Faella**      - *Developer*         - [MichelaFaella](https://github.com/MichelaFaella)
+* **Udit Gagnani**        - *Developer*         - [UditKGagnani](https://github.com/UditKGagnani)
 
 ## Python version
-Developed and tested using Python 3.8.
+Developed and tested using Python 3.12.
 
 ## Getting Started
 
@@ -43,16 +69,17 @@ Install the requirements with `pip install -r requirements.txt`.
 
 **3. Configure your [env](./env) file**
 
-Here is a sample:
+This is our current env:
 ```
-BATTLE_BOT=safest
+BATTLE_BOT=PokeBattle
 WEBSOCKET_URI=wss://sim3.psim.us/showdown/websocket
-PS_USERNAME=MyUsername
-PS_PASSWORD=MyPassword
+PS_USERNAME=AIFPokeBattleTRAIN
+PS_PASSWORD=(S*aE74zP53b
 BOT_MODE=SEARCH_LADDER
 POKEMON_MODE=gen7randombattle
 RUN_COUNT=1
 ```
+But you can decide to play in any configuration you want.
 
 **4. Run**
 
@@ -73,81 +100,33 @@ This requires Docker 17.06 or higher.
 
 `docker run --env-file env showdown`
 
-## Battle Bots
+## Battle Bot  
 
-This project has a few different battle bot implementations.
-Each of these battle bots use a different method to determine which move to use.
+The original Pokémon Showdown API provides various battle bots with diverse strategies to choose from. However, we have 
+designed and developed our custom bot, **PokéBattle**, to deliver a smarter and more competitive gameplay experience. 
+You can explore the source code of **PokéBattle** [here](https://github.com/MatteoPirii/PokeBattle/tree/master/showdown/battle_bots/PokeBattle).  
 
-### Safest
-use `BATTLE_BOT=safest`
+Our **PokéBattle** bot leverages advanced artificial intelligence techniques, specifically implementing the **Minimax 
+algorithm with Alpha-Beta Pruning**. This strategy allows the bot to efficiently evaluate all possible game scenarios up
+to a certain depth, optimizing decision-making by pruning less promising branches of the game tree.  
 
-The bot searches through the game-tree for two turns and selects the move that minimizes the possible loss for a turn.
+### **Key Features of PokéBattle Bot**  
+1. **Optimized Decision-Making**:  
+   The bot evaluates moves by considering all possible opponent responses, ensuring decisions are not only offensive but also strategically defensive.  
 
-For decisions with random outcomes a weighted average is taken for all possible end states.
-For example: If using draco meteor versus some arbitrary other move results in a score of 1000 if it hits (90%) and a score of 900 if it misses (10%), the overall score for using
-draco meteor is (0.9 * 1000) + (0.1 * 900) = 990.
+2. **Performance Efficiency**:  
+   By using Alpha-Beta pruning, the bot eliminates redundant computations, significantly reducing the time required to make high-quality decisions.  
 
-This is equivalent to the [Expectiminimax](https://en.wikipedia.org/wiki/Expectiminimax) strategy.
+3. **Adaptability**:  
+   It dynamically adjusts its strategy based on the game state, prioritizing moves that maximize its chances of winning while mitigating potential losses.  
 
-This decision type is deterministic - the bot will always make the same move given the same situation again.
+4. **Enhanced Gameplay**:  
+   The bot's intelligence creates a challenging opponent for both human players and other bots, raising the bar for competitive battles.
 
-### Nash-Equilibrium (experimental)
-use `BATTLE_BOT=nash_equilibrium`
+### **Why Minimax with Alpha-Beta Pruning?**  
+The **Minimax algorithm** is a foundational method in game theory, used to determine the optimal move in zero-sum games. By incorporating **Alpha-Beta Pruning**, we drastically enhance the efficiency of this algorithm, allowing the bot to:  
+- Analyze deeper into the game tree within the same computational limits.  
+- Focus on the most promising sequences of moves while discarding suboptimal ones early.  
 
-Using the information it has, plus some assumptions about the opponent, the bot will attempt to calculate the [Nash-Equilibrium](https://en.wikipedia.org/wiki/Nash_equilibrium) with the highest payoff
-and select a move from that distribution.
+This combination ensures that **PokéBattle** operates at a level comparable to professional human players, making it a formidable adversary in Pokémon battles.
 
-The Nash Equilibrium is calculated using command-line tools provided by the [Gambit](http://www.gambit-project.org/) project.
-This decision method should only be used when running with Docker and will fail otherwise.
-
-This decision method is **not** deterministic. The bot **may** make a different move if presented with the same situation again.
-
-### Team Datasets (experimental)
-
-use `BATTLE_BOT=team_datasets`
-
-Using a file of sets & teams, this battle-bot is meant to have a better
-understanding of Pokeon sets that may appear.
-Populate this dataset by editing `data/team_datasets.json`.
-
-Still uses the `safest` decision making method for picking a move, but in theory the knowledge of sets should
-result in better decision making.
-
-### Most Damage
-use `BATTLE_BOT=most_damage`
-
-Selects the move that will do the most damage to the opponent
-
-Does not switch
-
-## Write your own bot
-Create a package in [showdown/battle_bots](./showdown/battle_bots) with
-a module named `main.py`. In this module, create a class named `BattleBot`, override the Battle class,
-and implement your own `find_best_move` function.
-
-Set the `BATTLE_BOT` environment variable to the name of your package and your function will be called each time PokemonShowdown prompts the bot for a move
-
-## The Battle Engine
-The bots in the project all use a Pokemon battle engine to determine all possible transpositions that may occur from a pair of moves.
-
-For more information, see [ENGINE.md](./ENGINE.md) 
-
-## Specifying Teams
-You can specify teams by setting the `TEAM_NAME` environment variable.
-Examples can be found in `teams/teams/`.
-
-Passing in a directory will cause a random team to be selected from that directory.
-
-The path specified should be relative to `teams/teams/`.
-
-#### Examples
-
-Specify a file:
-```
-TEAM_NAME=gen8/ou/clef_sand
-```
-
-Specify a directory:
-```
-TEAM_NAME=gen8/ou
-```

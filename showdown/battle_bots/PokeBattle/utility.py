@@ -6,7 +6,7 @@ def game_over(challenger: Battler, opponent: Battler) -> bool:
     user_pokemon_alive = challenger.active.is_alive() if challenger.active is not None else False
     opponent_pokemon_alive = opponent.active.is_alive() if opponent.active is not None else False
 
-    # Cheks if there are available Pokémon to switch
+    # Checks if there are available Pokémon to switch
     reserve_pokemon_alive = not challenger.get_switches() == []
     reserve_opponent_alive = not opponent.get_switches() == []
 
@@ -22,7 +22,7 @@ def adjust_time(elapsed: int, limit: int) -> int:
         return 30
 
     if elapsed >= 60:
-        # the lowest timer pokemon showdown allows is 30s
+        # the lowest timer Pokémon showdown allows is 30s
         if limit <= 30:
             return 30
         # every turn that takes more than a minute sets the limit to a minute less than the original timer
@@ -31,6 +31,6 @@ def adjust_time(elapsed: int, limit: int) -> int:
     if elapsed >= 30:
         return limit - 30
 
-    #in general the timer continues unless is 0 or less
+    # in general the timer continues unless is 0 or less
     new_timer = limit - elapsed
     return new_timer if new_timer > 0 else 30
