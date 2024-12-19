@@ -534,28 +534,76 @@ def stab_modifier(attacking_pokemon, attacking_move):
     return 1  # No STAB bonus
 
 
-def apply_damage_conditions(defender: Pokemon, move: Move) -> float:
-    """Apply damage reduction modifiers like Reflect, Light Screen, and Multiscale."""
+def apply_damage_conditions(defender: Pokemon, move: Move, attacker: Pokemon = None) -> float:
+    """
+    Apply damage reduction modifiers, including Reflect, Light Screen, and specific abilities.
+    """
     modifier = 1.0
     side_conditions = getattr(defender, 'side_conditions', {})
 
-    # Critical hits ignore damage reduction
-    if getattr(move, 'critical_hint', False):
+    # Check if abilities are ignored by the attacker
+    def is_ability_ignored():
+        return attacker and attacker.ability.lower() in ["mold_breaker", "teravolt", "turboblaze", "mycelium_might"]
+
+    # Ability-based immunities
+    if not is_ability_ignored():
+        if move.type == "ground" and defender.ability.lower() in ["levitate", "earth_eater"]:
+            return 0.0  # No damage
+        if move.type == "water" and defender.ability.lower() in ["storm_drain", "water_absorb", "desolate_land"]:
+            return 0.0  # No damage, though it may trigger the ability
+        if move.type == "electric" and defender.ability.lower() in ["lightning_rod", "volt_absorb"]:
+            return 0.0  # No damage
+        if move.type == "fire" and defender.ability.lower() == "flash_fire":
+            return 0.0  # No damage
+        if move.type in ["ice", "water"] and defender.ability.lower() == "dry_skin":
+            return 0.0  # No damage from appropriate types
+        if move.type == "grass" and defender.ability.lower() == "sap_sipper":
+            return 0.0  # No damage
+
+    # Critical hits ignore reductions
+    if getattr(move, 'critical_hit', False):
         return 1.0  # Ignore all reductions
 
-    # Check defensive conditions
-    if side_conditions.get(constants.REFLECT) and move.category == constants.PHYSICAL:
+    # Field-based defensive conditions
+    if side_conditions.get(REFLECT) and move.category == PHYSICAL:
         modifier *= 0.5
-    if side_conditions.get(constants.LIGHT_SCREEN) and move.category == constants.SPECIAL:
+    if side_conditions.get(LIGHT_SCREEN) and move.category == SPECIAL:
         modifier *= 0.5
-    if side_conditions.get(constants.AURORA_VEIL):
+    if side_conditions.get(AURORA_VEIL):
         modifier *= 0.67
-    if defender.ability == "multiscale" and defender.hp == defender.max_hp:
+
+    # Abilities that reduce damage
+    if defender.ability.lower() == "multiscale" and defender.hp == defender.max_hp:
         modifier *= 0.5
-    if defender.ability in ["filter", "solid_rock"] and calculate_type_multiplier(move.type, defender.types) > 1:
+    if defender.ability.lower() in ["filter", "solid_rock", "prism_armor"] and calculate_type_multiplier(move.type, defender.types) > 1:
         modifier *= 0.75
-    if getattr(defender, 'partner_ability', '') == "friend_guard":
+    if defender.ability.lower() == "ice_scales" and move.category == SPECIAL:
+        modifier *= 0.5
+    if defender.ability.lower() == "fluffy" and move.category == PHYSICAL and move.type != "fire":
+        modifier *= 0.5
+    if defender.ability.lower() == "thick_fat" and move.type in ["fire", "ice"]:
+        modifier *= 0.5
+    if defender.ability.lower() == "fur_coat" and move.category == PHYSICAL:
+        modifier *= 0.5
+    if defender.ability.lower() == "ice_face" and move.category == PHYSICAL and move.type == "ice":
+        modifier *= 0.5
+    if defender.ability.lower() in ["heatproof", "water_bubble", "steam_engine", "thermal_exchange", "water_veil"] and move.type == "fire":
+        modifier *= 0.5
+    if defender.ability.lower() in ["water_compaction", "steam_engine"] and move.type == "water":
+        modifier *= 0.5
+    if getattr(defender, 'partner_ability', '').lower() == "friend_guard":
         modifier *= 0.75
+
+    # Abilities that increase damage
+    if defender.ability.lower() == "dry_skin" and move.type == "fire":
+        modifier *= 1.5
+    if defender.ability.lower() == "fluffy" and move.type == "fire":
+        modifier *= 1.5
+
+    # Special abilities that variably affect damage
+    if defender.ability.lower() == "wonder_guard":
+        if calculate_type_multiplier(move.type, defender.types) <= 1:
+            return 0.0  # No damage from non-super-effective moves
 
     return modifier
 
