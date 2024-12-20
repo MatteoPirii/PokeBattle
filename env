@@ -20,6 +20,12 @@ RUN_COUNT=40
 LOG_LEVEL=DEBUG
 
 ## Evolutionary algorithm params
-RUNS_FOR_GENOME=1
-POPULATION_SIZE=2
+# n. of runs for each genome test
+RUNS_FOR_GENOME=10
+
+# fized population size
+POPULATION_SIZE=5
+
+# percentage that a random mutation occurs
+# random mutations don't affect genes with variance = 0
 MUTATION_RATE=0.05

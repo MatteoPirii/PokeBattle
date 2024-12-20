@@ -68,6 +68,7 @@ async def showdown():
     evolution = Evolution()
     while True:
         genome = evolution.genomes[i]
+        genome.save(evolution.generation, i)
         for _ in range(int(env("RUNS_FOR_GENOME"))):
             if ShowdownConfig.log_to_file:
                 ShowdownConfig.log_handler.do_rollover(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.log"))

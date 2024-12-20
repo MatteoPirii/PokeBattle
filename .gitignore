@@ -9,3 +9,4 @@ creds
 !requirements*
 suspect_decisions.py
 env*
+gen*_n*.json

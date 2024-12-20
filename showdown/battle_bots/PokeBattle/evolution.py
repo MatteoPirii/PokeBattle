@@ -59,6 +59,20 @@ class Genome:
     def variance(self, gene: str) -> float | int:
         "returns the variance/instability of the gene"
         return self.genes[gene].variance
+
+    def save(self, generation: int, genome_index: int):
+        data = dict()
+        stable = "Stable_"
+
+        for gene in self.genes:
+            gene_map = {"value": self.value(gene), "variance": self.variance(gene)}
+            data[gene] = gene_map
+            
+            # doesn't print stable if the variance isn't
+            if self.variance != 0:
+                stable = ""
+        file = open(f"data/evolution/{stable}gen{generation}_n{genome_index}.json", "w")
+        json.dump(data, file, indent=4)
             
 
 class Evolution:
@@ -98,8 +112,8 @@ class Evolution:
             min_gene = min(genome1, genome2, key=lambda x: x.value(gene)).value(gene)
             value_variance = utility.scale_range(gene_value, [min_gene, max_gene], [0, 1]) / 100
             gene_variance = value_variance * (genome1.variance(gene) * genome2.variance(gene) / 100)
-            
-            genes[gene] = Chromosome(gene_value, gene_variance)
+
+            genes[gene] = Chromosome.random_mutation(Chromosome(gene_value, gene_variance))
 
         parent_score = utility.avg([genome1.parent_score, genome2.parent_score])
         return Genome(genes, parent_score)
@@ -115,7 +129,6 @@ class Evolution:
         if not genomes:
             genomes = self.genomes
         return list(combinations(genomes, 2))
-
 
     def next_generation(self) -> 'Evolution':
         "Creates the next generation from the current one"
