@@ -6,8 +6,9 @@ from datetime import datetime
 from copy import deepcopy
 
 import constants
-from config import ShowdownConfig, init_logging
+from config import ShowdownConfig, init_logging, env
 
+from showdown.battle_bots.PokeBattle.evolution import Evolution
 from teams import load_team
 from showdown.run_battle import pokemon_battle
 from showdown.websocket_client import PSWebsocketClient
@@ -63,39 +64,54 @@ async def showdown():
     battles_run = 0
     wins = 0
     losses = 0
+    i=0
+    evolution = Evolution()
     while True:
-        if ShowdownConfig.log_to_file:
-            ShowdownConfig.log_handler.do_rollover(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.log"))
-        team = load_team(ShowdownConfig.team)
-        if ShowdownConfig.bot_mode == constants.CHALLENGE_USER:
-            await ps_websocket_client.challenge_user(
-                ShowdownConfig.user_to_challenge,
-                ShowdownConfig.pokemon_mode,
-                team
-            )
-        elif ShowdownConfig.bot_mode == constants.ACCEPT_CHALLENGE:
-            await ps_websocket_client.accept_challenge(
-                ShowdownConfig.pokemon_mode,
-                team,
-                ShowdownConfig.room_name
-            )
-        elif ShowdownConfig.bot_mode == constants.SEARCH_LADDER:
-            await ps_websocket_client.search_for_match(ShowdownConfig.pokemon_mode, team)
-        else:
-            raise ValueError("Invalid Bot Mode: {}".format(ShowdownConfig.bot_mode))
+        genome = evolution.genomes[i]
+        for _ in range(int(env("RUNS_FOR_GENOME"))):
+            if ShowdownConfig.log_to_file:
+                ShowdownConfig.log_handler.do_rollover(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.log"))
+            team = load_team(ShowdownConfig.team)
+            if ShowdownConfig.bot_mode == constants.CHALLENGE_USER:
+                await ps_websocket_client.challenge_user(
+                    ShowdownConfig.user_to_challenge,
+                    ShowdownConfig.pokemon_mode,
+                    team
+                )
+            elif ShowdownConfig.bot_mode == constants.ACCEPT_CHALLENGE:
+                await ps_websocket_client.accept_challenge(
+                    ShowdownConfig.pokemon_mode,
+                    team,
+                    ShowdownConfig.room_name
+                )
+            elif ShowdownConfig.bot_mode == constants.SEARCH_LADDER:
+                await ps_websocket_client.search_for_match(ShowdownConfig.pokemon_mode, team)
+            else:
+                raise ValueError("Invalid Bot Mode: {}".format(ShowdownConfig.bot_mode))
 
-        winner = await pokemon_battle(ps_websocket_client, ShowdownConfig.pokemon_mode)
-        if winner == ShowdownConfig.username:
-            wins += 1
-        else:
-            losses += 1
+            winner = await pokemon_battle(ps_websocket_client, ShowdownConfig.pokemon_mode, genome=genome)
+            battles_run += 1
+            logger.info(f"Generation {evolution.generation}, genome {i+1} battle {battles_run} finished")
+            
+            if winner == ShowdownConfig.username:
+                wins += 1
+            else:
+                losses += 1
+            logger.info("W: {}\tL: {}".format(wins, losses))                
 
-        logger.info("W: {}\tL: {}".format(wins, losses))
-        check_dictionaries_are_unmodified(original_pokedex, original_move_json)
+            check_dictionaries_are_unmodified(original_pokedex, original_move_json)
 
-        battles_run += 1
         if battles_run >= ShowdownConfig.run_count:
             break
+            
+        genome.score = wins / battles_run # compute its score
+        wins = losses = 0
+        # if the test for all genomes is done restart the search with the next generation
+        logger.debug(f"genome {i}, poplation size {evolution.population_size}")
+        i += 1
+        if i >= evolution.population_size:
+            evolution = evolution.next_generation()
+            i = 0
 
 
 if __name__ == "__main__":
