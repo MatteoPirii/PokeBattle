@@ -605,14 +605,6 @@ def apply_damage_conditions(defender: Pokemon, move: Move, attacker: Pokemon = N
 
     return modifier
 
-
-def is_type_advantage_move(move_name: str, opponent_types: list[str]) -> bool:
-    """Checks if a move has a type advantage against the opponent's active Pokémon."""
-    move = Move(move_name)
-    type_multiplier = calculate_type_multiplier(move.type, opponent_types)
-    return type_multiplier > 1
-
-
 def get_attack_stat(pokemon: Pokemon, move: Move) -> float:
     if not isinstance(move, Move):
         raise TypeError(f"Expected move to be an instance of Move, got {type(move).__name__}")
