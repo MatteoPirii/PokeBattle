@@ -21,8 +21,6 @@ In this section we introduce context information for the project.
 
 ## Introduction
 
-Spring Boot Web App to support artisans. Produced for the Software Engineering and Software Project Management
-courses of Computer Science at University of Salerno.
 
 ## Authors
 * **Matteo Piredda**      - *Developer*         - [MatteoPirii](https://github.com/MatteoPirii)
@@ -31,7 +29,7 @@ courses of Computer Science at University of Salerno.
 * **Udit Gagnani**        - *Developer*         - [UditKGagnani](https://github.com/UditKGagnani)
 
 ## Python version
-Developed and tested using Python 3.12.
+Developed and tested using Python 3.12.7
 
 ## Getting Started
 
@@ -56,6 +54,10 @@ The configurations available are:
 | **`ROOM_NAME`** | string | no | If `BOT_MODE` is `ACCEPT_CHALLENGE`, the bot will join this chatroom while waiting for a challenge. |
 | **`SAVE_REPLAY`** | boolean | no | Specifies whether or not to save replays of the battles (`True` / `False`) |
 | **`LOG_LEVEL`** | string | no | The Python logging level (`DEBUG`, `INFO`, etc.) |
+Genetic algorithm
+| **`RUNS_FOR_GENOME`** | int | yes | Number of matches used to score a genome
+| **`POPULATION_SIZE`** | int | yes | Population size for the genetic search algorithm
+| **`MUTATION_RATE`** | float | yes | Chance of a random mutation to occur during the recombination process
 
 ### Running without Docker
 
@@ -86,19 +88,23 @@ But you can decide to play in any configuration you want.
 Run with `python run.py`
 
 ### Running with Docker
-This requires Docker 17.06 or higher.
+Requires Docker and the Docker Comopose plugin.
 
-**1. Clone the repository**
+The project has been tested on *docker 27.4.1* with *docker compose 2.3.1*
 
-`git clone https://github.com/MatteoPiri/PokeBattle.git`
+1. **Clone the repository**
 
-**2. Build the Docker image**
+   `git clone https://github.com/MatteoPiri/PokeBattle.git`
 
-`docker build . -t showdown`
+1. **Configure your [env](./env) file**
 
-**3. Run with an environment variable file**
+   Configure the .env file following the table above or use our own
 
-`docker run --env-file env showdown`
+1. **Run docker**
+   
+   `docker compose up` will start the project
+   
+>Connect to [PokemonShowdown](https://play.pokemonshowdown.com/) and log-in with the same credentials in the .env file to see the battle in real-time
 
 ## Battle Bot  
 
