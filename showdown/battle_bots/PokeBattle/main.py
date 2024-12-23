@@ -606,8 +606,6 @@ def apply_damage_conditions(defender: Pokemon, move: Move, attacker: Pokemon = N
     return modifier
 
 def get_attack_stat(pokemon: Pokemon, move: Move) -> float:
-    if not isinstance(move, Move):
-        raise TypeError(f"Expected move to be an instance of Move, got {type(move).__name__}")
 
     return pokemon.stats[constants.ATTACK] if move.category == constants.PHYSICAL else pokemon.stats[
         constants.SPECIAL_ATTACK]
