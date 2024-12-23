@@ -543,7 +543,8 @@ def apply_damage_conditions(defender: Pokemon, move: Move, attacker: Pokemon = N
 
     # Check if abilities are ignored by the attacker
     def is_ability_ignored():
-        return attacker and attacker.ability.lower() in ["mold_breaker", "teravolt", "turboblaze", "mycelium_might"]
+        return attacker and attacker.ability and attacker.ability.lower() in ["mold_breaker", "teravolt", "turboblaze",
+                                                                              "mycelium_might"]
 
     # Constants for easier handling of conditions
     ABILITY_IMMUNITIES = {
@@ -556,7 +557,7 @@ def apply_damage_conditions(defender: Pokemon, move: Move, attacker: Pokemon = N
     }
 
     # Ability-based immunities (using a dictionary lookup)
-    if not is_ability_ignored():
+    if not is_ability_ignored() and defender.ability:
         for move_type, abilities in ABILITY_IMMUNITIES.items():
             if move.type == move_type and defender.ability.lower() in abilities:
                 return 0.0  # No damage
@@ -594,14 +595,15 @@ def apply_damage_conditions(defender: Pokemon, move: Move, attacker: Pokemon = N
         "friend_guard": (getattr(defender, 'partner_ability', '').lower() == "friend_guard", 0.75)
     }
 
-    for ab, (condition, modifier_value) in ability_conditions.items():
-        if defender.ability.lower() == ab and condition:
-            modifier *= modifier_value
+    if defender.ability:
+        for ab, (condition, modifier_value) in ability_conditions.items():
+            if defender.ability.lower() == ab and condition:
+                modifier *= modifier_value
 
-    # Special abilities that variably affect damage
-    if defender.ability.lower() == "wonder_guard":
-        if calculate_type_multiplier(move.type, defender.types) <= 1:
-            return 0.0  # No damage from non-super-effective moves
+        # Special abilities that variably affect damage
+        if defender.ability.lower() == "wonder_guard":
+            if calculate_type_multiplier(move.type, defender.types) <= 1:
+                return 0.0  # No damage from non-super-effective moves
 
     return modifier
 
