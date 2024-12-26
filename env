@@ -12,7 +12,7 @@ PS_PASSWORD=6k36@Yj5xCVHU&A0!1
 
 BOT_MODE=SEARCH_LADDER
 POKEMON_MODE=gen6randombattle
-RUN_COUNT=40
+RUN_COUNT=32
 
 #USER_TO_CHALLENGE=
 #TEAM_NAME=
@@ -30,4 +30,5 @@ POPULATION_SIZE=5
 # random mutations don't affect genes with variance = 0
 MUTATION_RATE=0.05
 
+# Whether to start the genetic algorithm or not
 START_GENETIC_ALGORITHM=False
