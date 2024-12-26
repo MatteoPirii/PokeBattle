@@ -78,6 +78,7 @@ PS_PASSWORD=(S*aE74zP53b
 BOT_MODE=SEARCH_LADDER
 POKEMON_MODE=gen7randombattle
 RUN_COUNT=1
+START_GENETIC_ALGORITHM=False
 ```
 But you can decide to play in any configuration you want.
 
