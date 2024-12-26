@@ -29,3 +29,5 @@ POPULATION_SIZE=5
 # percentage that a random mutation occurs
 # random mutations don't affect genes with variance = 0
 MUTATION_RATE=0.05
+
+START_GENETIC_ALGORITHM=False
