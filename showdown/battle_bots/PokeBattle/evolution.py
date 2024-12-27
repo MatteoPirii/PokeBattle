@@ -42,10 +42,10 @@ class Genome:
         data: dict[str, dict[str, float] | str] = json.load(file)
         genes: dict[str, Chromosome] = {}
         for element in data:
-            if element == "parent_score": continue
+            if element == "parent_score" or element == "score": continue 
             genes[element] = Chromosome(float(data[element]["value"]), float(data[element]["variance"]))
 
-        return Genome(genes, float(data.get("parent_score", 0)))
+        return Genome(genes, float(data.get("score", 0)))
 
     def value(self, gene: str) -> float | int:
         "returns the value of the gene"
@@ -63,7 +63,8 @@ class Genome:
     def save(self, generation: int, genome_index: int):
         data = dict()
         stable = "Stable_"
-
+        data["score"] = self.score
+        data["parent_score"] = self.parent_score
         for gene in self.genes:
             gene_map = {"value": self.value(gene), "variance": self.variance(gene)}
             data[gene] = gene_map
@@ -115,7 +116,7 @@ class Evolution:
 
             genes[gene] = Chromosome.random_mutation(Chromosome(gene_value, gene_variance))
 
-        parent_score = utility.avg([genome1.parent_score, genome2.parent_score])
+        parent_score = utility.avg([genome1.score, genome2.score])
         return Genome(genes, parent_score)
 
     def culling(self) -> list[Genome]:
