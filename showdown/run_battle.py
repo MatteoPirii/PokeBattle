@@ -9,6 +9,7 @@ import data
 from data.helpers import get_standard_battle_sets
 import constants
 from config import ShowdownConfig
+from showdown.battle_bots.PokeBattle.evolution import Genome
 from showdown.engine.evaluate import Scoring
 from showdown.battle import Pokemon
 from showdown.battle import LastUsedMove
@@ -73,7 +74,7 @@ async def get_battle_tag_and_opponent(ps_websocket_client: PSWebsocketClient):
             return battle_tag, opponent_name
 
 
-async def initialize_battle_with_tag(ps_websocket_client: PSWebsocketClient, set_request_json=True):
+async def initialize_battle_with_tag(ps_websocket_client: PSWebsocketClient, set_request_json=True, genome: Genome | None = None):
     battle_module = importlib.import_module('showdown.battle_bots.{}.main'.format(ShowdownConfig.battle_bot_module))
 
     battle_tag, opponent_name = await get_battle_tag_and_opponent(ps_websocket_client)
@@ -84,7 +85,7 @@ async def initialize_battle_with_tag(ps_websocket_client: PSWebsocketClient, set
             user_json = json.loads(split_msg[2].strip('\''))
             user_id = user_json[constants.SIDE][constants.ID]
             opponent_id = constants.ID_LOOKUP[user_id]
-            battle = battle_module.BattleBot(battle_tag)
+            battle = battle_module.BattleBot({"battle_tag":battle_tag, "genome":genome})
             battle.opponent.name = opponent_id
             battle.opponent.account_name = opponent_name
 
@@ -115,8 +116,8 @@ async def read_messages_until_first_pokemon_is_seen(ps_websocket_client, battle,
             return
 
 
-async def start_random_battle(ps_websocket_client: PSWebsocketClient, pokemon_battle_type):
-    battle, opponent_id, user_json = await initialize_battle_with_tag(ps_websocket_client)
+async def start_random_battle(ps_websocket_client: PSWebsocketClient, pokemon_battle_type, genome: Genome | None = None):
+    battle, opponent_id, user_json = await initialize_battle_with_tag(ps_websocket_client, genome=genome)
     battle.battle_type = constants.RANDOM_BATTLE
     battle.generation = pokemon_battle_type[:4]
 
@@ -164,10 +165,10 @@ async def start_standard_battle(ps_websocket_client: PSWebsocketClient, pokemon_
     return battle
 
 
-async def start_battle(ps_websocket_client, pokemon_battle_type):
+async def start_battle(ps_websocket_client, pokemon_battle_type, genome: Genome | None = None):
     if "random" in pokemon_battle_type:
         Scoring.POKEMON_ALIVE_STATIC = 30  # random battle benefits from a lower static score for an alive pkmn
-        battle = await start_random_battle(ps_websocket_client, pokemon_battle_type)
+        battle = await start_random_battle(ps_websocket_client, pokemon_battle_type, genome=genome)
     else:
         battle = await start_standard_battle(ps_websocket_client, pokemon_battle_type)
 
@@ -177,8 +178,8 @@ async def start_battle(ps_websocket_client, pokemon_battle_type):
     return battle
 
 
-async def pokemon_battle(ps_websocket_client, pokemon_battle_type):
-    battle = await start_battle(ps_websocket_client, pokemon_battle_type)
+async def pokemon_battle(ps_websocket_client, pokemon_battle_type, genome: Genome | None = None):
+    battle = await start_battle(ps_websocket_client, pokemon_battle_type, genome=genome)
     while True:
         msg = await ps_websocket_client.receive_message()
         if battle_is_finished(battle.battle_tag, msg):

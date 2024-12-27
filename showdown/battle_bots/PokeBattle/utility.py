@@ -34,3 +34,18 @@ def adjust_time(elapsed: int, limit: int) -> int:
     # in general the timer continues unless is 0 or less
     new_timer = limit - elapsed
     return new_timer if new_timer > 0 else 30
+
+
+def scale_range(value: float, source_range: list[float | int], destination_range = [-100, 100]) -> float:
+    "Scales the value into a different range"
+    assert len(source_range) == 2, f"source range should by an array of two elements, it is {source_range}"
+
+    value_diff = value - source_range[0]
+    destination_diff = destination_range[1] - destination_range[0]
+    source_diff = source_range[1] - source_range[0]
+    scale = value_diff * destination_diff / source_diff
+    return destination_range[0] + scale
+
+def avg(numbers: list[float | int]) -> float:
+    s = sum(n for n in numbers)
+    return s / len(numbers)

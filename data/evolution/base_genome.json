@@ -1,0 +1,106 @@
+{
+    "fainted_bonus": {
+        "value": 100,
+        "variance": 100
+    },
+    "fainted_penalty": {
+        "value": -100,
+        "variance": 100
+    },
+    "reserve_bonus": {
+        "value": 10,
+        "variance": 100
+    },
+    "reserve_penalty": {
+        "value": 10,
+        "variance": 100
+    },
+    "type_advantage": {
+        "value": 120,
+        "variance": 100
+    },
+    "type_disadvantage": {
+        "value": 100,
+        "variance": 100
+    },
+    "type_immunity_penalty": {
+        "value": -150,
+        "variance": 100
+    },
+    "boost_negative": {
+        "value": -20,
+        "variance": 100
+    },
+    "boost_positive": {
+        "value": 30,
+        "variance": 100
+    },
+    "boost_excess": {
+        "value": -10,
+        "variance": 100
+    },
+    "useless_heal_penalty": {
+        "value": -120,
+        "variance": 100
+    },
+    "fainted": {
+        "value": 1,
+        "variance": 100
+    },
+    "hp": {
+        "value": 1,
+        "variance": 100
+    },
+    "level": {
+        "value": 1,
+        "variance": 100
+    },
+    "reserve": {
+        "value": 1,
+        "variance": 100
+    },
+    "type": {
+        "value": 1,
+        "variance": 100
+    },
+    "weather": {
+        "value": 1,
+        "variance": 100
+    },
+    "status": {
+        "value": 1,
+        "variance": 100
+    },
+    "boost": {
+        "value": 1,
+        "variance": 100
+    },
+    "opponent_move": {
+        "value": 1,
+        "variance": 100
+    },
+    "par": {
+        "value": 30,
+        "variance": 100
+    },
+    "psn": {
+        "value": 35,
+        "variance": 100
+    },
+    "tox": {
+        "value": 40,
+        "variance": 100
+    },
+    "brn": {
+        "value": 25,
+        "variance": 100
+    },
+    "slp": {
+        "value": 60,
+        "variance": 100
+    },
+    "frz": {
+        "value": 70,
+        "variance": 100
+    }
+}

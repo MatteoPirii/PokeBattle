@@ -1,4 +1,5 @@
 import logging
+import re
 import constants
 import json
 import math
@@ -8,9 +9,12 @@ import time
 from copy import deepcopy
 from showdown.battle import Battle, Pokemon, Move
 from showdown.battle_bots.PokeBattle import utility, state_eval
+from showdown.battle_bots.PokeBattle.evolution import Genome
 from showdown.battle_bots.PokeBattle.utility import game_over
 from showdown.battle_bots.helpers import format_decision
 from showdown.engine import helpers
+
+logger = logging.getLogger(__name__)
 
 # Maximum depth of exploration for minimax
 MAX_DEPTH = 18
@@ -26,12 +30,12 @@ with open('data/moves.json', 'r') as f:
 class BattleBot(Battle):
 
     def __init__(self, *args, **kwargs):
-        super(BattleBot, self).__init__(*args, **kwargs)
+        super(BattleBot, self).__init__(args[0]["battle_tag"])
+        logger.debug(f"kwargs {kwargs}, args: {args}")
         self.time_remaining = 150  # 2min + 30s
         self.debug = False
         self.start_time: float = 0
-
-        self.logger = logging.getLogger(__name__)
+        self.genome: Genome = args[0]["genome"]
 
     def find_best_move(self) -> list[str]:
         """Finds best move or best switch using Minimax"""
@@ -255,72 +259,80 @@ class BattleBot(Battle):
 
     def evaluate_state(self) -> float:
         """Battle state evaluation"""
-        score = 0
 
+        fainted_score = 0
         # Check if active Pokémon are alive
         if not self.user.active.is_alive():
-            return float('-inf')  # Heavy penalty if user's active Pokémon is fainted
+            fainted_score += self.genome["fainted_penalty"]  # Heavy penalty if user's active Pokémon is fainted
         if not self.opponent.active.is_alive():
-            return float('inf')  # High reward if opponent's active Pokémon is fainted
+            fainted_score += self.genome["fainted_bonus"]  # High reward if opponent's active Pokémon is fainted
 
         # 1. Scores by HP difference and level
         hp_percent_user = self.user.active.hp / self.user.active.max_hp
         hp_percent_opponent = self.opponent.active.hp / self.opponent.active.max_hp
-        level_diff = self.user.active.level - self.opponent.active.level
-        score += (hp_percent_user - hp_percent_opponent) * 50
-        score += level_diff * 5
+        hp_score = hp_percent_user - hp_percent_opponent
+        level_score = self.user.active.level - self.opponent.active.level
 
         # 2. Bonus/penalty for alive reserve
-        user_reserve_score = sum(10 for p in self.user.reserve if p.hp > 0)
-        opponent_reserve_score = sum(10 for p in self.opponent.reserve if p.hp > 0)
-        score += user_reserve_score - opponent_reserve_score
+        user_reserve_score = sum(self.genome["reserve_bonus"] for p in self.user.reserve if p.hp > 0)
+        opponent_reserve_score = sum(self.genome["reserve_penalty"] for p in self.opponent.reserve if p.hp > 0)
+        reserve_score = utility.scale_range(user_reserve_score - opponent_reserve_score, [self.genome["reserve_penalty"] * 6, self.genome["reserve_bonus"] * 6])
 
         # 3. Bonus/penalty for type advantage/disadvantage
         type_advantage_multiplier = calculate_type_multiplier(self.user.active.types[0], self.opponent.active.types)
+        type_score = 0
         if type_advantage_multiplier > 1:
-            score += 120 * type_advantage_multiplier  # Bonus for type advantage
+            type_score = self.genome["type_advantage"] * type_advantage_multiplier  # Bonus for type advantage
         elif type_advantage_multiplier < 1 and type_advantage_multiplier != 0:
-            score -= 100 * (1 / type_advantage_multiplier)  # Penalty for type disadvantage
+            type_score = -self.genome["type_disadvantage"] * (1 / type_advantage_multiplier)  # Penalty for type disadvantage
         else:
-            score -= 150
+            type_score = self.genome["type_immunity_penalty"]
 
         # 4. Bonus for weather conditions
-        score += state_eval.weather_condition(self.user.active, self.opponent.active, self.weather)
+        weather_score = state_eval.weather_condition(self.user.active, self.opponent.active, self.weather)
 
         # 5. Penalty for status conditions
-        status_penalty = {
-            constants.PARALYZED: 30,
-            constants.POISON: 35,
-            'badly poisoned': 40,
-            constants.BURN: 25,
-            constants.SLEEP: 60,
-            constants.FROZEN: 70,
-        }
-        score -= status_penalty.get(self.user.active.status, 0)
-        score += status_penalty.get(self.opponent.active.status, 0)
+        status_score = self.genome.value(self.opponent.active.status) - self.genome.value(self.user.active.status)
+        status_score = utility.scale_range(status_score, [- self.genome[constants.FROZEN], self.genome[constants.FROZEN]])
 
         # 6. Evaluate user's boost status
-        for boost, value in self.user.active.boosts.items():
+        boost_score = 0
+        for _, value in self.user.active.boosts.items():
             if value < 0:
-                score -= 20
+                boost_score += self.genome["boost_negative"]
             elif 0 < value <= 4:
-                score += 30
+                boost_score += self.genome["boost_positive"]
             elif value > 4:
-                score -= 10
+                boost_score += self.genome["boost_excess"]
 
-        # 7. Evaluate user's boost status
         status_move = [move for move in self.user.active.moves if
                        "heal" in all_moves.get(move.name.lower(), {}).get("flags", {})]
         if status_move and hp_percent_user >= 0.85:
-            score -= 120
+            boost_score += self.genome["useless_heal_penalty"]
 
-        # 8. Integrate worst-case opponent move analysis
+        boost_score = utility.scale_range(boost_score, [-10 * self.genome["boost_negative"] - self.genome["useless_heal_penalty"], 10 * self.genome["boost_positive"]])
+
+        # 7. Integrate worst-case opponent move analysis
         opponent_moves = self.opponent.active.moves
+        opponent_move_score = 0
         if opponent_moves:
             worst_opponent_score = min(
                 self.evaluate_move_risk(move, self.user.active) for move in opponent_moves
             )
-            score += worst_opponent_score  # Adjust score with worst-case scenario
+            opponent_move_score = worst_opponent_score  # Adjust score with worst-case scenario
+        opponent_move_score = utility.scale_range(opponent_move_score, [-300, 300])
+
+        # 8. Linear combination of scores
+        score = 0
+        score += self.genome["fainted"] * fainted_score
+        score += self.genome["hp"] * hp_score
+        score += self.genome["level"] * level_score
+        score += self.genome["reserve"] * reserve_score
+        score += self.genome["type"] * type_score
+        score += self.genome["weather"] * weather_score
+        score += self.genome["status"] * status_score
+        score += self.genome["boost"] * boost_score
+        score += self.genome["opponent_move"] * opponent_move_score
 
         # 9. Random factor for tie-breaking decisions
         score += random.uniform(-1, 1)

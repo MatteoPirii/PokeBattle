@@ -50,6 +50,7 @@ The configurations available are:
 | **`POKEMON_MODE`** | string | yes | The type of game this bot will play: `gen8ou`, `gen7randombattle`, etc. |
 | **`USER_TO_CHALLENGE`** | string | only if `BOT_MODE` is `CHALLENGE_USER` | If `BOT_MODE` is `CHALLENGE_USER`, this is the name of the user you want your bot to challenge |
 | **`RUN_COUNT`** | int | no | The number of games the bot will play before quitting |
+| **`START_GENETIC_ALGORITHM`** | boolean | yes | # Whether to start the genetic algorithm or not |
 | **`TEAM_NAME`** | string | no | The name of the file that contains the team you want to use. More on this below in the Specifying Teams section. |
 | **`ROOM_NAME`** | string | no | If `BOT_MODE` is `ACCEPT_CHALLENGE`, the bot will join this chatroom while waiting for a challenge. |
 | **`SAVE_REPLAY`** | boolean | no | Specifies whether or not to save replays of the battles (`True` / `False`) |
@@ -79,7 +80,8 @@ PS_USERNAME=AIFPokeBattleTRAIN
 PS_PASSWORD=(S*aE74zP53b
 BOT_MODE=SEARCH_LADDER
 POKEMON_MODE=gen7randombattle
-RUN_COUNT=1
+RUN_COUNT=32
+START_GENETIC_ALGORITHM=False
 ```
 But you can decide to play in any configuration you want.
 

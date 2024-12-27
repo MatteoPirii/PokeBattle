@@ -10,3 +10,4 @@ creds
 suspect_decisions.py
 env*
 data/jupyter
+gen*_n*.json
