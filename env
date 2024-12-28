@@ -20,6 +20,9 @@ RUN_COUNT=32
 LOG_LEVEL=DEBUG
 
 ## Evolutionary algorithm params
+# Whether to start the genetic algorithm or not
+START_GENETIC_ALGORITHM=False
+
 # n. of runs for each genome test
 RUNS_FOR_GENOME=10
 
@@ -30,5 +33,3 @@ POPULATION_SIZE=5
 # random mutations don't affect genes with variance = 0
 MUTATION_RATE=0.05
 
-# Whether to start the genetic algorithm or not
-START_GENETIC_ALGORITHM=False

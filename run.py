@@ -16,6 +16,7 @@ from showdown.websocket_client import PSWebsocketClient
 from data import all_move_json
 from data import pokedex
 from data.mods.apply_mods import apply_mods
+from showdown.battle_bots.PokeBattle.evolution import Genome
 
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ async def setup_battle_client():
 
     return ps_websocket_client, original_pokedex, original_move_json
 
-async def execute_battle(ps_websocket_client, team, pokemon_mode):
+async def execute_battle(ps_websocket_client, team, pokemon_mode, genome : Genome | None = None):
     if ShowdownConfig.bot_mode == constants.CHALLENGE_USER:
         await ps_websocket_client.challenge_user(
             ShowdownConfig.user_to_challenge,
@@ -78,7 +79,7 @@ async def execute_battle(ps_websocket_client, team, pokemon_mode):
     else:
         raise ValueError("Invalid Bot Mode: {}".format(ShowdownConfig.bot_mode))
 
-    return await pokemon_battle(ps_websocket_client, pokemon_mode)
+    return await pokemon_battle(ps_websocket_client, pokemon_mode, genome=genome)
 
 # Function for running a regular Showdown battle
 async def showdown():
@@ -91,7 +92,10 @@ async def showdown():
     while battles_run < ShowdownConfig.run_count:
         # Run one showdown battle
         team = load_team(ShowdownConfig.team)
-        winner = await execute_battle(ps_websocket_client, team, ShowdownConfig.pokemon_mode)
+        genome = None
+        if env("BATTLE_BOT") == "PokeBattle":
+            genome = Genome.from_file()
+        winner = await execute_battle(ps_websocket_client, team, ShowdownConfig.pokemon_mode, genome= genome)
         
         # Track wins and losses
         if winner == ShowdownConfig.username:
@@ -119,13 +123,12 @@ async def run_genetic_algorithm():
 
     while battles_run < ShowdownConfig.run_count:
         genome = evolution.genomes[i]
-        genome.save(evolution.generation, i)
         
         for _ in range(int(env("RUNS_FOR_GENOME"))):
             if ShowdownConfig.log_to_file:
                 ShowdownConfig.log_handler.do_rollover(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.log"))
             team = load_team(ShowdownConfig.team)
-            winner = await execute_battle(ps_websocket_client, team, ShowdownConfig.pokemon_mode)
+            winner = await execute_battle(ps_websocket_client, team, ShowdownConfig.pokemon_mode, genome=genome)
             
             if winner == ShowdownConfig.username:
                 wins += 1
@@ -139,6 +142,7 @@ async def run_genetic_algorithm():
             check_dictionaries_are_unmodified(original_pokedex, original_move_json)
                     
         genome.score = wins / battles_run  # Compute the score (win percentage)
+        genome.save(evolution.generation, i)
         wins = losses = 0
 
         logger.debug(f"genome {i}, population size {evolution.population_size}")

@@ -56,9 +56,10 @@ The configurations available are:
 | **`SAVE_REPLAY`** | boolean | no | Specifies whether or not to save replays of the battles (`True` / `False`) |
 | **`LOG_LEVEL`** | string | no | The Python logging level (`DEBUG`, `INFO`, etc.) |
 Genetic algorithm
-| **`RUNS_FOR_GENOME`** | int | yes | Number of matches used to score a genome
-| **`POPULATION_SIZE`** | int | yes | Population size for the genetic search algorithm
-| **`MUTATION_RATE`** | float | yes | Chance of a random mutation to occur during the recombination process
+| **`START_GENETIC_ALGORITHM`** | bool | yes | Whether to start a search or use the existing genome in a match
+| **`RUNS_FOR_GENOME`** | int | only if `START_GENETIC_ALGORITHM` is `True` | Number of matches used to score a genome
+| **`POPULATION_SIZE`** | int | only if `START_GENETIC_ALGORITHM` is `True` | Population size for the genetic search algorithm
+| **`MUTATION_RATE`** | float | only if `START_GENETIC_ALGORITHM` is `True` | Chance of a random mutation to occur during the recombination process
 
 ### Running without Docker
 

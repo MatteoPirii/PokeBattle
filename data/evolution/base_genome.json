@@ -1,106 +1,108 @@
 {
+    "score": 1.0,
+    "parent_score": 0.30000000000000004,
     "fainted_bonus": {
-        "value": 100,
-        "variance": 100
+        "value": 2.7867857424683213e-72,
+        "variance": 1.7829309586175307e-42
     },
     "fainted_penalty": {
-        "value": -100,
-        "variance": 100
+        "value": 1.23785125183807e-69,
+        "variance": -4.49181091927312e-58
     },
     "reserve_bonus": {
-        "value": 10,
-        "variance": 100
+        "value": -6.265466353509368e-130,
+        "variance": 5.643417009819657e-93
     },
     "reserve_penalty": {
-        "value": 10,
-        "variance": 100
+        "value": 1.1200217336999905e+124,
+        "variance": 1.878341378578619e-64
     },
     "type_advantage": {
-        "value": 120,
-        "variance": 100
+        "value": 4.164515268896551e-21,
+        "variance": 1.6689922414864632e-69
     },
     "type_disadvantage": {
-        "value": 100,
-        "variance": 100
+        "value": -1e+65,
+        "variance": -1.0187095002338584e-60
     },
     "type_immunity_penalty": {
-        "value": -150,
-        "variance": 100
+        "value": 5.57632728378821e-90,
+        "variance": -1.037301011122973e-65
     },
     "boost_negative": {
-        "value": -20,
-        "variance": 100
+        "value": 1.0472050215856402e-70,
+        "variance": 1.0205605486384942e-45
     },
     "boost_positive": {
-        "value": 30,
-        "variance": 100
+        "value": -2.4088475637074694e+124,
+        "variance": -1.973470362461978e-64
     },
     "boost_excess": {
-        "value": -10,
-        "variance": 100
+        "value": -1.042277429608172e+124,
+        "variance": -1.8660270343388834e-64
     },
     "useless_heal_penalty": {
-        "value": -120,
-        "variance": 100
+        "value": 2.4269799488343195e-36,
+        "variance": 1.8048782453429436e-53
     },
     "fainted": {
-        "value": 1,
-        "variance": 100
+        "value": -1.6361953798952155e+125,
+        "variance": -9.633853515118852e-64
     },
     "hp": {
-        "value": 1,
-        "variance": 100
+        "value": -4.899364783858935e-48,
+        "variance": -2.610737533765981e-48
     },
     "level": {
-        "value": 1,
-        "variance": 100
+        "value": 1.9264042245255123e+124,
+        "variance": 2.7911822928361965e-64
     },
     "reserve": {
-        "value": 1,
-        "variance": 100
+        "value": -3.970746798546788e+124,
+        "variance": -6.1679862140816824e-64
     },
     "type": {
-        "value": 1,
-        "variance": 100
+        "value": 4.9005681350276594e-82,
+        "variance": 1.7029366536711496e-48
     },
     "weather": {
-        "value": 1,
-        "variance": 100
+        "value": -7.43312891607596,
+        "variance": 0.00013738254398891315
     },
     "status": {
-        "value": 1,
-        "variance": 100
+        "value": 1.3929130466778856e-35,
+        "variance": 5.703193271260606e-52
     },
     "boost": {
-        "value": 1,
-        "variance": 100
+        "value": -1.4002649580948308e-92,
+        "variance": -1.1650095416600785e-69
     },
     "opponent_move": {
-        "value": 1,
-        "variance": 100
+        "value": -3.4383076131307434e-46,
+        "variance": -8.744952648263696e-45
     },
     "par": {
-        "value": 30,
-        "variance": 100
+        "value": -5.6204465115318e-96,
+        "variance": -1.2046391876030146e-70
     },
     "psn": {
-        "value": 35,
-        "variance": 100
+        "value": -9.663189350177177e+124,
+        "variance": -4.7448810388143396e-64
     },
     "tox": {
-        "value": 40,
-        "variance": 100
+        "value": -1.2273470721613756e-20,
+        "variance": -8.359983365991046e-65
     },
     "brn": {
-        "value": 25,
-        "variance": 100
+        "value": -1.7520207226989625e+124,
+        "variance": -7.278923507253414e-64
     },
     "slp": {
-        "value": 60,
-        "variance": 100
+        "value": 1e+65,
+        "variance": 5.620533678695484e-60
     },
     "frz": {
-        "value": 70,
-        "variance": 100
+        "value": -6.3747460607131245e-87,
+        "variance": 1.226851738904301e-50
     }
 }
