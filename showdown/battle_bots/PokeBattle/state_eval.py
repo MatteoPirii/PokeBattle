@@ -1,5 +1,3 @@
-from showdown.battle import Pokemon
-
 # Weather conditions - type bonuses derived form https://bulbapedia.bulbagarden.net/wiki/Weather
 CONDITIONS = {
     'sunnyday': {
@@ -25,7 +23,7 @@ CONDITIONS = {
 
 
 # State evaluation funcitons
-def weather_condition(user_pokemon: Pokemon, opponent_pokemon: Pokemon, weather: str | None) -> float:
+def weather_condition(user_pokemon, opponent_pokemon, weather: str | None) -> float:
     """
     Evaluates the weather conditions effect on a pokemon and returns an advantage or disadvantage score
     """

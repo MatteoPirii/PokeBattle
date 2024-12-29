@@ -1,9 +1,7 @@
 import constants
 import random
-from showdown.battle import Battler, Pokemon, Move
 
-
-def game_over(challenger: Battler, opponent: Battler) -> bool:
+def game_over(challenger, opponent) -> bool:
     """Checks if battle is over given two opponents"""
     user_pokemon_alive = challenger.active.is_alive() if challenger.active is not None else False
     opponent_pokemon_alive = opponent.active.is_alive() if opponent.active is not None else False
@@ -67,7 +65,7 @@ def calculate_type_multiplier(move_type: str, defender_types: list[str]) -> floa
 
     return max(multiplier, 0)
 
-def apply_damage_conditions(defender: Pokemon, move: Move, attacker: Pokemon | None = None) -> float:
+def apply_damage_conditions(defender, move, attacker = None) -> float:
     """
     Apply damage reduction modifiers, including Reflect, Light Screen, and specific abilities.
     """
@@ -140,7 +138,7 @@ def apply_damage_conditions(defender: Pokemon, move: Move, attacker: Pokemon | N
 
     return modifier
 
-def calculate_damage(attacker: Pokemon, defender: Pokemon, move: Move) -> int:
+def calculate_damage(attacker, defender, move) -> int:
     """Calculate damage inflicted by move with additional modifier logic."""
 
     # Base damage calculation
@@ -168,11 +166,44 @@ def calculate_damage(attacker: Pokemon, defender: Pokemon, move: Move) -> int:
 
     return max(1, int(damage))
 
-def get_attack_stat(pokemon: Pokemon, move: Move) -> float:
+def get_attack_stat(pokemon, move) -> float:
     return pokemon.stats[constants.ATTACK] if move.category == constants.PHYSICAL else pokemon.stats[
         constants.SPECIAL_ATTACK]
 
 
-def get_defense_stat(pokemon: Pokemon, move: Move) -> float:
+def get_defense_stat(pokemon, move) -> float:
     return pokemon.stats[constants.DEFENSE] if move.category == constants.PHYSICAL else pokemon.stats[
         constants.SPECIAL_DEFENSE]
+
+def format_decision(battle, decision):
+    # Formats a decision for communication with Pokemon-Showdown
+    # If the pokemon can mega-evolve, it will
+    # If the move can be used as a Z-Move, it will be
+
+    if decision.startswith(constants.SWITCH_STRING + " "):
+        switch_pokemon = decision.split("switch ")[-1]
+        for pkmn in battle.user.reserve:
+            if pkmn.name == switch_pokemon:
+                message = "/switch {}".format(pkmn.index)
+                break
+        else:
+            raise ValueError("Tried to switch to: {}".format(switch_pokemon))
+    else:
+        message = "/choose move {}".format(decision)
+        if battle.user.active.can_mega_evo:
+            message = "{} {}".format(message, constants.MEGA)
+        elif battle.user.active.can_ultra_burst:
+            message = "{} {}".format(message, constants.ULTRA_BURST)
+
+        # only dynamax on last pokemon
+        if battle.user.active.can_dynamax and all(p.hp == 0 for p in battle.user.reserve):
+            message = "{} {}".format(message, constants.DYNAMAX)
+
+        # only terastallize on last pokemon. Come back to this later because this is bad.
+        elif battle.user.active.can_terastallize and all(p.hp == 0 for p in battle.user.reserve):
+            message = "{} {}".format(message, constants.TERASTALLIZE)
+
+        if battle.user.active.get_move(decision).can_z:
+            message = "{} {}".format(message, constants.ZMOVE)
+
+    return [message, str(battle.rqid)]
