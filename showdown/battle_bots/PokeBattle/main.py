@@ -259,55 +259,57 @@ class BattleBot(Battle):
     def evaluate_state(self) -> float:
         """Battle state evaluation"""
 
-        fainted_score = 0
+        score = 0
         # Check if active Pokémon are alive
         if not self.user.active.is_alive():
             fainted_score += self.genome["fainted_penalty"]  # Heavy penalty if user's active Pokémon is fainted
         if not self.opponent.active.is_alive():
-            fainted_score += self.genome["fainted_bonus"]  # High reward if opponent's active Pokémon is fainted
+            return float('inf')  # High reward if opponent's active Pokémon is fainted
+
 
         # 1. Scores by HP difference and level
         hp_percent_user = self.user.active.hp / self.user.active.max_hp
         hp_percent_opponent = self.opponent.active.hp / self.opponent.active.max_hp
-        hp_score = hp_percent_user - hp_percent_opponent
-        level_score = self.user.active.level - self.opponent.active.level
+        score += (hp_percent_user - hp_percent_opponent) * self.genome['hp']
+        score += (self.user.active.level - self.opponent.active.level) * self.genome['level']
 
         # 2. Bonus/penalty for alive reserve
         user_reserve_score = sum(self.genome["reserve_bonus"] for p in self.user.reserve if p.hp > 0)
         opponent_reserve_score = sum(self.genome["reserve_penalty"] for p in self.opponent.reserve if p.hp > 0)
-        reserve_score = utility.scale_range(user_reserve_score - opponent_reserve_score, [self.genome["reserve_penalty"] * 6, self.genome["reserve_bonus"] * 6])
+        score = user_reserve_score - opponent_reserve_score
 
         # 3. Bonus/penalty for type advantage/disadvantage
         type_advantage_multiplier = calculate_type_multiplier(self.user.active.types[0], self.opponent.active.types)
         type_score = 0
         if type_advantage_multiplier > 1:
-            type_score = self.genome["type_advantage"] * type_advantage_multiplier  # Bonus for type advantage
+            score += self.genome["type_advantage"] * type_advantage_multiplier  # Bonus for type advantage
         elif type_advantage_multiplier < 1 and type_advantage_multiplier != 0:
-            type_score = -self.genome["type_disadvantage"] * (1 / type_advantage_multiplier)  # Penalty for type disadvantage
+            score -= self.genome["type_disadvantage"] * (1 / type_advantage_multiplier)  # Penalty for type disadvantage
         else:
-            type_score = self.genome["type_immunity_penalty"]
+            score -= self.genome["type_immunity_penalty"]
 
         # 4. Bonus for weather conditions
-        weather_score = state_eval.weather_condition(self.user.active, self.opponent.active, self.weather)
+        score += state_eval.weather_condition(self.user.active, self.opponent.active, self.weather)
+
 
         # 5. Penalty for status conditions
-        status_score = self.genome.value(self.opponent.active.status) - self.genome.value(self.user.active.status)
-        status_score = utility.scale_range(status_score, [- self.genome[constants.FROZEN], self.genome[constants.FROZEN]])
+        score += self.genome.value(self.opponent.active.status) - self.genome.value(self.user.active.status)
+
 
         # 6. Evaluate user's boost status
         boost_score = 0
         for _, value in self.user.active.boosts.items():
             if value < 0:
-                boost_score += self.genome["boost_negative"]
+                score += self.genome["boost_negative"]
             elif 0 < value <= 4:
-                boost_score += self.genome["boost_positive"]
+                score += self.genome["boost_positive"]
             elif value > 4:
-                boost_score += self.genome["boost_excess"]
+                score += self.genome["boost_excess"]
 
         status_move = [move for move in self.user.active.moves if
-                       "heal" in all_moves.get(move.name.lower(), {}).get("flags", {})]
+                       "heal" in all_move_json.get(move.name.lower(), {}).get("flags", {})]
         if status_move and hp_percent_user >= 0.85:
-            boost_score += self.genome["useless_heal_penalty"]
+            score += self.genome["useless_heal_penalty"]
 
         boost_score = utility.scale_range(boost_score, [-10 * self.genome["boost_negative"] - self.genome["useless_heal_penalty"], 10 * self.genome["boost_positive"]])
 
@@ -321,19 +323,17 @@ class BattleBot(Battle):
             opponent_move_score = worst_opponent_score  # Adjust score with worst-case scenario
         opponent_move_score = utility.scale_range(opponent_move_score, [-300, 300])
 
-        # 8. Linear combination of scores
-        score = 0
-        score += self.genome["fainted"] * fainted_score
-        score += self.genome["hp"] * hp_score
-        score += self.genome["level"] * level_score
-        score += self.genome["reserve"] * reserve_score
-        score += self.genome["type"] * type_score
-        score += self.genome["weather"] * weather_score
-        score += self.genome["status"] * status_score
-        score += self.genome["boost"] * boost_score
-        score += self.genome["opponent_move"] * opponent_move_score
+        # 7. Integrate worst-case opponent move analysis
+        opponent_moves = self.opponent.active.moves
+        opponent_move_score = 0
+        if opponent_moves:
+            worst_opponent_score = min(
+                self.evaluate_move_risk(move, self.user.active) for move in opponent_moves
+            )
+            score += worst_opponent_score  # Adjust score with worst-case scenario
 
-        # 9. Random factor for tie-breaking decisions
+
+        # 8. Random factor for tie-breaking decisions
         score += random.uniform(-1, 1)
 
         return score
